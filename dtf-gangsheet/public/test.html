@@ -1,22 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Upload PNG or PDF</title>
+  <title>PDF Gang Sheet Generator</title>
 </head>
 <body>
-  <h1>Upload PNG or PDF</h1>
+  <h1>Upload a PDF to Generate Gang Sheet</h1>
 
   <form id="uploadForm" enctype="multipart/form-data">
-    <label>Choose File:</label>
-    <input type="file" name="files" required><br><br>
+    <label>Choose PDF:</label>
+    <input type="file" name="file" accept="application/pdf" required><br><br>
 
     <label>Quantity:</label>
-    <input type="number" name="quantity" value="1" min="1" required><br><br>
+    <input type="number" name="qty" value="10" min="1" required><br><br>
 
     <label>Rotate?</label>
     <select name="rotate">
-      <option value="no">No</option>
-      <option value="yes">Yes</option>
+      <option value="0">No</option>
+      <option value="90">Yes (90°)</option>
     </select><br><br>
 
     <button type="submit">Generate Gang Sheet</button>
@@ -27,27 +27,20 @@
       event.preventDefault();
 
       const form = event.target;
-      const fileInput = form.querySelector('input[name="files"]');
-      const quantity = parseInt(form.querySelector('input[name="quantity"]').value);
+      const fileInput = form.querySelector('input[name="file"]');
+      const qty = form.querySelector('input[name="qty"]').value;
       const rotate = form.querySelector('select[name="rotate"]').value;
 
       const formData = new FormData();
-      formData.append("files", fileInput.files[0]);
+      formData.append("file", fileInput.files[0]);
 
-      // Quantity array for backend (even though we only have one)
-      formData.append("quantities", JSON.stringify([quantity]));
-
-      // Rotation array (90 if yes, else 0)
-      const rotationValue = rotate === "yes" ? 90 : 0;
-      formData.append("rotations", JSON.stringify([rotationValue]));
-
-      const response = await fetch("/generate", {
+      const response = await fetch(`/merge?qty=${qty}&rotate=${rotate}`, {
         method: "POST",
         body: formData
       });
 
       if (!response.ok) {
-        alert("Something went wrong generating the gang sheet!");
+        alert("❌ Something went wrong generating the gang sheet!");
         return;
       }
 
