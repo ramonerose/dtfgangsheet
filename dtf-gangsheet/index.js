@@ -5,94 +5,90 @@ import { PDFDocument, degrees } from "pdf-lib";
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
+// constants
 const SHEET_WIDTH_INCH = 22;
 const SHEET_HEIGHT_INCH = 36;
 const SAFE_MARGIN_INCH = 0.125;
 const SPACING_INCH = 0.5;
 const POINTS_PER_INCH = 72;
 
-app.use(express.static("public"));
+app.get("/", (req, res) => {
+  res.send("✅ Gang Sheet PDF backend with clean 90° rotation is running!");
+});
 
-app.post("/generate", upload.array("files"), async (req, res) => {
+app.post("/merge", upload.single("file"), async (req, res) => {
   try {
-    const files = req.files;
-    const quantities = JSON.parse(req.body.quantities || "[]");
-    const rotations = JSON.parse(req.body.rotations || "[]");
+    const qty = parseInt(req.query.qty || "10");
+    const rotateAngle = parseInt(req.query.rotate || "0"); // 0 or 90
 
-    const pdfDoc = await PDFDocument.create();
+    const uploadedPDF = req.file.buffer;
+
+    const gangDoc = await PDFDocument.create();
     const sheetWidthPts = SHEET_WIDTH_INCH * POINTS_PER_INCH;
     const sheetHeightPts = SHEET_HEIGHT_INCH * POINTS_PER_INCH;
+    const gangPage = gangDoc.addPage([sheetWidthPts, sheetHeightPts]);
 
-    let page = pdfDoc.addPage([sheetWidthPts, sheetHeightPts]);
+    const srcDoc = await PDFDocument.load(uploadedPDF);
+    const [embeddedPage] = await gangDoc.embedPdf(await srcDoc.save());
 
-    let x = SAFE_MARGIN_INCH * POINTS_PER_INCH;
-    let y = sheetHeightPts - SAFE_MARGIN_INCH * POINTS_PER_INCH;
+    let originalWidth = embeddedPage.width;
+    let originalHeight = embeddedPage.height;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const quantity = quantities[i] || 1;
-      const rotation = rotations[i] || 0;
+    // Handle rotated dimensions
+    const isRotated = rotateAngle === 90 || rotateAngle === 270;
+    const logoWidthPts = isRotated ? originalHeight : originalWidth;
+    const logoHeightPts = isRotated ? originalWidth : originalHeight;
 
-      let imgWidthPts, imgHeightPts, embedRef;
+    const marginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
+    const spacingPts = SPACING_INCH * POINTS_PER_INCH;
 
-      if (file.mimetype === "image/png") {
-        const img = await pdfDoc.embedPng(file.buffer);
-        imgWidthPts = img.width;
-        imgHeightPts = img.height;
-        embedRef = img;
-      } else if (file.mimetype === "application/pdf") {
-        const tempPdf = await PDFDocument.load(file.buffer);
-        const [importedPage] = await pdfDoc.copyPages(tempPdf, [0]);
-        embedRef = importedPage;
-        const { width, height } = importedPage.getSize();
-        imgWidthPts = width;
-        imgHeightPts = height;
-      } else {
-        console.warn(`Unsupported file type: ${file.mimetype}`);
-        continue;
-      }
+    const usableWidth = sheetWidthPts - marginPts * 2;
+    const usableHeight = sheetHeightPts - marginPts * 2;
 
-      for (let q = 0; q < quantity; q++) {
-        if (x + imgWidthPts + SAFE_MARGIN_INCH * POINTS_PER_INCH > sheetWidthPts) {
-          x = SAFE_MARGIN_INCH * POINTS_PER_INCH;
-          y -= imgHeightPts + SPACING_INCH * POINTS_PER_INCH;
-        }
-        if (y - imgHeightPts - SAFE_MARGIN_INCH * POINTS_PER_INCH < 0) {
-          page = pdfDoc.addPage([sheetWidthPts, sheetHeightPts]);
-          x = SAFE_MARGIN_INCH * POINTS_PER_INCH;
-          y = sheetHeightPts - SAFE_MARGIN_INCH * POINTS_PER_INCH;
-        }
+    const perRow = Math.floor((usableWidth + spacingPts) / (logoWidthPts + spacingPts));
+    const perCol = Math.floor((usableHeight + spacingPts) / (logoHeightPts + spacingPts));
 
-        if (file.mimetype === "image/png") {
-          page.drawImage(embedRef, {
-            x,
-            y: y - imgHeightPts,
-            width: imgWidthPts,
-            height: imgHeightPts,
-            rotate: degrees(rotation),
+    console.log(`🧠 Can fit ${perRow} logos across × ${perCol} down`);
+
+    let placed = 0;
+
+    for (let row = 0; row < perCol && placed < qty; row++) {
+      for (let col = 0; col < perRow && placed < qty; col++) {
+        const baseX = marginPts + col * (logoWidthPts + spacingPts);
+        const baseY = sheetHeightPts - marginPts - (row + 1) * logoHeightPts - row * spacingPts;
+
+        if (rotateAngle === 90) {
+          gangPage.drawPage(embeddedPage, {
+            x: baseX + logoWidthPts, // shift right by width
+            y: baseY,
+            width: originalWidth,
+            height: originalHeight,
+            rotate: degrees(90)
           });
-        } else if (file.mimetype === "application/pdf") {
-          page.drawPage(embedRef, {
-            x,
-            y: y - imgHeightPts,
-            xScale: 1,
-            yScale: 1,
+        } else {
+          gangPage.drawPage(embeddedPage, {
+            x: baseX,
+            y: baseY,
+            width: originalWidth,
+            height: originalHeight
           });
         }
 
-        x += imgWidthPts + SPACING_INCH * POINTS_PER_INCH;
+        placed++;
       }
     }
 
-    const pdfBytes = await pdfDoc.save();
+    console.log(`✅ Placed ${placed} logos`);
+
+    const finalPDF = await gangDoc.save();
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", "attachment; filename=gangsheet.pdf");
-    res.send(pdfBytes);
+    res.send(finalPDF);
+
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Something went wrong: " + err.message);
+    console.error("❌ MERGE ERROR:", err);
+    res.status(500).send("❌ Error merging PDF");
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
