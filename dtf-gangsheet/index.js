@@ -5,17 +5,22 @@ import { PDFDocument, degrees } from "pdf-lib";
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// constants
+// ✅ Serve static files like test.html from the public folder
+app.use(express.static("public"));
+
+// constants for sheet size
 const SHEET_WIDTH_INCH = 22;
 const SHEET_HEIGHT_INCH = 36;
 const SAFE_MARGIN_INCH = 0.125;
 const SPACING_INCH = 0.5;
 const POINTS_PER_INCH = 72;
 
+// Simple root route just to confirm it's running
 app.get("/", (req, res) => {
   res.send("✅ Gang Sheet PDF backend with clean 90° rotation is running!");
 });
 
+// ✅ PDF-only merge route
 app.post("/merge", upload.single("file"), async (req, res) => {
   try {
     const qty = parseInt(req.query.qty || "10");
@@ -90,5 +95,6 @@ app.post("/merge", upload.single("file"), async (req, res) => {
   }
 });
 
+// ✅ Use Railway port or fallback to 3000
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
