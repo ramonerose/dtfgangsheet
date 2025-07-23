@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>DTF Gang Sheet Generator</title>
+</head>
+<body>
+  <h1>Upload PNG or PDF</h1>
+  <form id="uploadForm" method="post" enctype="multipart/form-data">
+    <input type="file" name="files" multiple accept="image/png,application/pdf"><br><br>
+
+    Quantities (comma-separated):
+    <input type="text" id="quantities" value="1"><br><br>
+
+    Rotations (comma-separated in degrees):
+    <input type="text" id="rotations" value="0"><br><br>
+
+    <button type="submit">Generate Gang Sheet</button>
+  </form>
+
+  <script>
+    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const form = e.target;
+      const formData = new FormData(form);
+
+      const quantities = document.getElementById("quantities").value.split(",").map(Number);
+      const rotations = document.getElementById("rotations").value.split(",").map(Number);
+
+      formData.append("quantities", JSON.stringify(quantities));
+      formData.append("rotations", JSON.stringify(rotations));
+
+      const res = await fetch("/generate", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!res.ok) {
+        alert("Something went wrong!");
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "gangsheet.pdf";
+      a.click();
+    });
+  </script>
+</body>
+</html>
