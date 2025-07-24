@@ -86,8 +86,12 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     console.log(`✅ Placed ${placed} logos`);
 
     const finalPDF = await gangDoc.save();
+
+    // ✅ Railway-safe binary response (prevents corruption)
     res.setHeader("Content-Type", "application/pdf");
-    res.send(finalPDF);
+    res.setHeader("Content-Disposition", "attachment; filename=gangsheet.pdf");
+    res.setHeader("Content-Length", finalPDF.length);
+    res.end(Buffer.from(finalPDF)); // send as raw binary
 
   } catch (err) {
     console.error("❌ MERGE ERROR:", err);
