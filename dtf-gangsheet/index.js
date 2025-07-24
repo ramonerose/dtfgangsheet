@@ -31,6 +31,29 @@ async function maybeRotatePNG(buffer, rotateFlag) {
   return rotatedBuffer;
 }
 
+// ✅ Rotate a PDF page BEFORE embedding, producing a normalized rotated PDF buffer
+async function normalizePDFwithRotation(pdfBuffer) {
+  log("Pre-rotating PDF page before embedding...");
+  const originalDoc = await PDFDocument.load(pdfBuffer);
+  const originalPage = originalDoc.getPages()[0];
+  const { width, height } = originalPage.getSize();
+
+  const rotatedDoc = await PDFDocument.create();
+  const rotatedPage = rotatedDoc.addPage([height, width]); // swap dimensions
+
+  // ✅ Draw the original page rotated 90° into the new page
+  const [embeddedPage] = await rotatedDoc.embedPdf(pdfBuffer);
+  rotatedPage.drawPage(embeddedPage, {
+    x: 0,
+    y: width,
+    rotate: degrees(90)
+  });
+
+  const rotatedBytes = await rotatedDoc.save();
+  log("PDF pre-rotation complete.");
+  return rotatedBytes;
+}
+
 app.post("/merge", upload.single("file"), async (req, res) => {
   try {
     log("/merge route hit!");
@@ -54,21 +77,21 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     let assetType = "pdf";
 
     if (isPDF) {
-      // ✅ PDFs rotate using pdf-lib
-      assetType = "pdf";
-      const uploadedPdf = await PDFDocument.load(uploadedFile.buffer);
-      const uploadedPage = uploadedPdf.getPages()[0];
-      let { width: pdfWidthPts, height: pdfHeightPts } = uploadedPage.getSize();
+      // ✅ If rotating a PDF, normalize it first into a pre-rotated buffer
+      let workingPdfBuffer = uploadedFile.buffer;
+      if (rotate) {
+        workingPdfBuffer = await normalizePDFwithRotation(uploadedFile.buffer);
+      }
 
-      let layoutWidth = pdfWidthPts;
-      let layoutHeight = pdfHeightPts;
-      if (rotate) [layoutWidth, layoutHeight] = [pdfHeightPts, pdfWidthPts];
+      const pdfDoc = await PDFDocument.load(workingPdfBuffer);
+      const pdfPage = pdfDoc.getPages()[0];
+      const { width: pdfWidthPts, height: pdfHeightPts } = pdfPage.getSize();
 
-      logoWidthPts = layoutWidth;
-      logoHeightPts = layoutHeight;
+      logoWidthPts = pdfWidthPts;
+      logoHeightPts = pdfHeightPts;
 
       embedFunc = async (doc) => {
-        const [embeddedPage] = await doc.embedPdf(uploadedFile.buffer);
+        const [embeddedPage] = await doc.embedPdf(workingPdfBuffer);
         return embeddedPage;
       };
 
@@ -96,7 +119,6 @@ app.post("/merge", upload.single("file"), async (req, res) => {
         )}x${heightPts.toFixed(2)} pts`
       );
 
-      // ✅ After Sharp rotation, width/height are already correct
       logoWidthPts = widthPts;
       logoHeightPts = heightPts;
 
@@ -136,23 +158,11 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // ✅ drawLogo separates PDF vs PNG behavior cleanly
+    // ✅ drawLogo is now simplified, because PDFs are pre-rotated
     const drawLogo = (page, embeddedAsset, x, y) => {
       if (assetType === "pdf") {
-        if (rotate) {
-          // ✅ FIXED: Shift BOTH X and Y to properly pivot around the grid cell
-          const rotatedX = x + logoHeightPts; // push right by original height
-          const rotatedY = y + (logoWidthPts - logoHeightPts); // adjust vertically
-          page.drawPage(embeddedAsset, {
-            x: rotatedX,
-            y: rotatedY,
-            rotate: degrees(90)
-          });
-        } else {
-          page.drawPage(embeddedAsset, { x, y });
-        }
+        page.drawPage(embeddedAsset, { x, y });
       } else {
-        // ✅ PNG is already rotated via Sharp, so just draw normally
         page.drawImage(embeddedAsset, {
           x,
           y,
