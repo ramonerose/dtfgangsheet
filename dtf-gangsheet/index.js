@@ -1,7 +1,8 @@
 import express from "express";
 import multer from "multer";
-import { PDFDocument, degrees, pushGraphicsState, popGraphicsState } from "pdf-lib";
+import { PDFDocument, degrees } from "pdf-lib";
 import archiver from "archiver";
+import sharp from "sharp";  // ✅ NEW for true PNG rotation
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -21,28 +22,13 @@ function log(msg) {
   console.log(`[DEBUG] ${msg}`);
 }
 
-// ✅ Helper to draw a rotated PNG using proper pivot
-function drawRotatedPNG(page, png, x, y, width, height) {
-  // Save graphics state
-  page.pushOperators();
-
-  // Translate the origin to the grid cell anchor
-  page.translate(x, y);
-
-  // Rotate the coordinate system 90° clockwise
-  page.rotate(degrees(90));
-
-  // After rotation, the image's top-left shifts
-  // So draw it offset by -width to keep it inside the cell
-  page.drawImage(png, {
-    x: 0,
-    y: -width,
-    width: height,   // swapped
-    height: width
-  });
-
-  // Restore graphics state
-  page.popOperators();
+// ✅ Helper to pre-rotate PNG using Sharp
+async function maybeRotatePNG(buffer, rotateFlag) {
+  if (!rotateFlag) return buffer; // no rotation needed
+  log("Rotating PNG 90° clockwise with Sharp...");
+  const rotatedBuffer = await sharp(buffer).rotate(90).png().toBuffer();
+  log("Rotation done.");
+  return rotatedBuffer;
 }
 
 app.post("/merge", upload.single("file"), async (req, res) => {
@@ -68,6 +54,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     let assetType = "pdf";
 
     if (isPDF) {
+      // ✅ PDFs work same as before
       assetType = "pdf";
       const uploadedPdf = await PDFDocument.load(uploadedFile.buffer);
       const uploadedPage = uploadedPdf.getPages()[0];
@@ -84,10 +71,13 @@ app.post("/merge", upload.single("file"), async (req, res) => {
         const [embeddedPage] = await doc.embedPdf(uploadedFile.buffer);
         return embeddedPage;
       };
+
     } else if (isPNG) {
-      assetType = "png";
+      // ✅ NEW: rotate PNG buffer BEFORE embedding if rotate=true
+      let processedBuffer = await maybeRotatePNG(uploadedFile.buffer, rotate);
+
       const tempDoc = await PDFDocument.create();
-      const embeddedImage = await tempDoc.embedPng(uploadedFile.buffer);
+      const embeddedImage = await tempDoc.embedPng(processedBuffer);
 
       const pngWidthPx = embeddedImage.width;
       const pngHeightPx = embeddedImage.height;
@@ -100,16 +90,16 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
       log(`PNG pixel size: ${pngWidthPx}x${pngHeightPx} => ${widthInches.toFixed(2)}x${heightInches.toFixed(2)} inches => ${widthPts.toFixed(2)}x${heightPts.toFixed(2)} pts`);
 
-      let layoutWidth = widthPts;
-      let layoutHeight = heightPts;
-      if (rotate) [layoutWidth, layoutHeight] = [heightPts, widthPts];
-
-      logoWidthPts = layoutWidth;
-      logoHeightPts = layoutHeight;
+      // ✅ After Sharp rotation, width/height are already correct
+      logoWidthPts = widthPts;
+      logoHeightPts = heightPts;
 
       embedFunc = async (doc) => {
-        return await doc.embedPng(uploadedFile.buffer);
+        return await doc.embedPng(processedBuffer);
       };
+
+      assetType = "png";
+
     } else {
       throw new Error("Unsupported file type. Please upload PDF or PNG.");
     }
@@ -134,13 +124,12 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // ✅ drawLogo handles correct placement logic
+    // ✅ drawLogo now simplified – no weird math for PNG since it's pre-rotated
     const drawLogo = (page, embeddedAsset, x, y) => {
       if (assetType === "pdf") {
-        // ✅ PDF placement
         if (rotate) {
           page.drawPage(embeddedAsset, {
-            x: x + logoHeightPts, // shift RIGHT by rotated width
+            x: x + logoHeightPts, // shift RIGHT for rotated PDF
             y,
             rotate: degrees(90)
           });
@@ -148,18 +137,13 @@ app.post("/merge", upload.single("file"), async (req, res) => {
           page.drawPage(embeddedAsset, { x, y });
         }
       } else {
-        // ✅ PNG placement
-        if (rotate) {
-          // ✅ Now use proper pivot transform
-          drawRotatedPNG(page, embeddedAsset, x, y + logoHeightPts, logoWidthPts, logoHeightPts);
-        } else {
-          page.drawImage(embeddedAsset, {
-            x,
-            y,
-            width: logoWidthPts,
-            height: logoHeightPts
-          });
-        }
+        // ✅ PNG is already rotated if needed, just draw normally
+        page.drawImage(embeddedAsset, {
+          x,
+          y,
+          width: logoWidthPts,
+          height: logoHeightPts
+        });
       }
     };
 
