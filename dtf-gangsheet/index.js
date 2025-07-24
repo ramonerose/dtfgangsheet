@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { PDFDocument, degrees } from "pdf-lib";
+import { PDFDocument, degrees, pushGraphicsState, popGraphicsState } from "pdf-lib";
 import archiver from "archiver";
 
 const app = express();
@@ -19,6 +19,30 @@ app.use(express.static("public"));
 
 function log(msg) {
   console.log(`[DEBUG] ${msg}`);
+}
+
+// ✅ Helper to draw a rotated PNG using proper pivot
+function drawRotatedPNG(page, png, x, y, width, height) {
+  // Save graphics state
+  page.pushOperators();
+
+  // Translate the origin to the grid cell anchor
+  page.translate(x, y);
+
+  // Rotate the coordinate system 90° clockwise
+  page.rotate(degrees(90));
+
+  // After rotation, the image's top-left shifts
+  // So draw it offset by -width to keep it inside the cell
+  page.drawImage(png, {
+    x: 0,
+    y: -width,
+    width: height,   // swapped
+    height: width
+  });
+
+  // Restore graphics state
+  page.popOperators();
 }
 
 app.post("/merge", upload.single("file"), async (req, res) => {
@@ -126,14 +150,8 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       } else {
         // ✅ PNG placement
         if (rotate) {
-          // Rotate inside grid cell: shift DOWN by rotated height
-          page.drawImage(embeddedAsset, {
-            x: x,                            
-            y: y - logoHeightPts + spacingPts, // keep it inside cell
-            width: logoHeightPts,             // swapped width/height
-            height: logoWidthPts,
-            rotate: degrees(90)
-          });
+          // ✅ Now use proper pivot transform
+          drawRotatedPNG(page, embeddedAsset, x, y + logoHeightPts, logoWidthPts, logoHeightPts);
         } else {
           page.drawImage(embeddedAsset, {
             x,
