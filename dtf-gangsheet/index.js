@@ -111,7 +111,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // ✅ drawLogo handles correct method for PDF vs PNG, fixed rotated PNG offset
+    // ✅ drawLogo handles correct method for PDF vs PNG
     const drawLogo = (page, embeddedAsset, x, y) => {
       if (assetType === "pdf") {
         // PDF placement
@@ -127,11 +127,11 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       } else {
         // PNG placement
         if (rotate) {
-          // ✅ Corrected offset: move UP by original width so rotated image stays inside grid
+          // ✅ Final fix: match PDF offset (shift RIGHT by original height, keep same Y)
           page.drawImage(embeddedAsset, {
-            x: x,
-            y: y + logoWidthPts,
-            width: logoHeightPts,  // swapped dimensions
+            x: x + logoHeightPts,
+            y: y,
+            width: logoHeightPts,   // swapped dimensions
             height: logoWidthPts,
             rotate: degrees(90)
           });
