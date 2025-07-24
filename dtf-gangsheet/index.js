@@ -1,8 +1,9 @@
 import express from "express";
 import multer from "multer";
-import { PDFDocument, degrees } from "pdf-lib";
+import { PDFDocument } from "pdf-lib";
 import archiver from "archiver";
 import sharp from "sharp";
+import { fromBuffer } from "pdf2pic"; // ✅ PDF → PNG converter
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -22,36 +23,40 @@ function log(msg) {
   console.log(`[DEBUG] ${msg}`);
 }
 
-// ✅ Rotate PNGs BEFORE embedding
-async function maybeRotatePNG(buffer, rotateFlag) {
+// ✅ Rotate any PNG buffer
+async function rotateIfNeeded(buffer, rotateFlag) {
   if (!rotateFlag) return buffer;
-  log("Rotating PNG 90° clockwise with Sharp...");
-  const rotatedBuffer = await sharp(buffer).rotate(90).png().toBuffer();
-  log("Rotation done.");
-  return rotatedBuffer;
+  log("Rotating image 90° clockwise...");
+  return await sharp(buffer).rotate(90).toBuffer();
 }
 
-// ✅ Rotate a PDF page BEFORE embedding, producing a normalized rotated PDF buffer
-async function normalizePDFwithRotation(pdfBuffer) {
-  log("Pre-rotating PDF page before embedding...");
-  const originalDoc = await PDFDocument.load(pdfBuffer);
-  const originalPage = originalDoc.getPages()[0];
-  const { width, height } = originalPage.getSize();
-
-  const rotatedDoc = await PDFDocument.create();
-  const rotatedPage = rotatedDoc.addPage([height, width]); // swap dimensions
-
-  // ✅ Draw the original page rotated 90° into the new page
-  const [embeddedPage] = await rotatedDoc.embedPdf(pdfBuffer);
-  rotatedPage.drawPage(embeddedPage, {
-    x: 0,
-    y: width,
-    rotate: degrees(90)
+// ✅ Convert PDF → PNG buffer at 300 DPI
+async function convertPdfToPngBuffer(pdfBuffer) {
+  log("Converting PDF to PNG (300 DPI)...");
+  const converter = fromBuffer(pdfBuffer, {
+    density: PNG_DEFAULT_DPI,
+    format: "png",
+    width: undefined,
+    height: undefined,
+    saveFilename: "temp",
+    savePath: "/tmp"
   });
 
-  const rotatedBytes = await rotatedDoc.save();
-  log("PDF pre-rotation complete.");
-  return rotatedBytes;
+  const pngPage = await converter(1, { responseType: "buffer" });
+  const pngBuffer = pngPage.buffer;
+  log("PDF → PNG conversion done.");
+  return pngBuffer;
+}
+
+// ✅ Extract PNG dimensions (in points)
+async function getPngDimensions(buffer) {
+  const metadata = await sharp(buffer).metadata();
+  const widthInches = metadata.width / PNG_DEFAULT_DPI;
+  const heightInches = metadata.height / PNG_DEFAULT_DPI;
+  const widthPts = widthInches * POINTS_PER_INCH;
+  const heightPts = heightInches * POINTS_PER_INCH;
+  log(`Image size: ${widthInches.toFixed(2)}" x ${heightInches.toFixed(2)}"`);
+  return { widthPts, heightPts };
 }
 
 app.post("/merge", upload.single("file"), async (req, res) => {
@@ -72,65 +77,22 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     log(`Uploaded: ${uploadedFile.originalname} | PNG? ${isPNG} | PDF? ${isPDF}`);
     log(`Requested quantity: ${quantity}, rotate: ${rotate}`);
 
-    let logoWidthPts, logoHeightPts;
-    let embedFunc;
-    let assetType = "pdf";
+    let finalPngBuffer;
 
     if (isPDF) {
-      // ✅ If rotating a PDF, normalize it first into a pre-rotated buffer
-      let workingPdfBuffer = uploadedFile.buffer;
-      if (rotate) {
-        workingPdfBuffer = await normalizePDFwithRotation(uploadedFile.buffer);
-      }
-
-      const pdfDoc = await PDFDocument.load(workingPdfBuffer);
-      const pdfPage = pdfDoc.getPages()[0];
-      const { width: pdfWidthPts, height: pdfHeightPts } = pdfPage.getSize();
-
-      logoWidthPts = pdfWidthPts;
-      logoHeightPts = pdfHeightPts;
-
-      embedFunc = async (doc) => {
-        const [embeddedPage] = await doc.embedPdf(workingPdfBuffer);
-        return embeddedPage;
-      };
-
+      // ✅ Step 1: Convert PDF → PNG
+      const convertedPng = await convertPdfToPngBuffer(uploadedFile.buffer);
+      // ✅ Step 2: Rotate if requested
+      finalPngBuffer = await rotateIfNeeded(convertedPng, rotate);
     } else if (isPNG) {
-      // ✅ Rotate PNG buffer BEFORE embedding if rotate=true
-      let processedBuffer = await maybeRotatePNG(uploadedFile.buffer, rotate);
-
-      const tempDoc = await PDFDocument.create();
-      const embeddedImage = await tempDoc.embedPng(processedBuffer);
-
-      const pngWidthPx = embeddedImage.width;
-      const pngHeightPx = embeddedImage.height;
-
-      const widthInches = pngWidthPx / PNG_DEFAULT_DPI;
-      const heightInches = pngHeightPx / PNG_DEFAULT_DPI;
-
-      const widthPts = widthInches * POINTS_PER_INCH;
-      const heightPts = heightInches * POINTS_PER_INCH;
-
-      log(
-        `PNG pixel size: ${pngWidthPx}x${pngHeightPx} => ${widthInches.toFixed(
-          2
-        )}x${heightInches.toFixed(2)} inches => ${widthPts.toFixed(
-          2
-        )}x${heightPts.toFixed(2)} pts`
-      );
-
-      logoWidthPts = widthPts;
-      logoHeightPts = heightPts;
-
-      embedFunc = async (doc) => {
-        return await doc.embedPng(processedBuffer);
-      };
-
-      assetType = "png";
-
+      // ✅ Already PNG, just rotate if needed
+      finalPngBuffer = await rotateIfNeeded(uploadedFile.buffer, rotate);
     } else {
       throw new Error("Unsupported file type. Please upload PDF or PNG.");
     }
+
+    // ✅ Get normalized PNG size
+    const { widthPts: logoWidthPts, heightPts: logoHeightPts } = await getPngDimensions(finalPngBuffer);
 
     const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
     const spacingPts = SPACING_INCH * POINTS_PER_INCH;
@@ -152,24 +114,23 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     );
     const logosPerSheet = logosPerRow * rowsPerSheet;
 
-    log(
-      `Each sheet max ${rowsPerSheet} rows -> ${logosPerSheet} logos max per sheet`
-    );
+    log(`Each sheet max ${rowsPerSheet} rows -> ${logosPerSheet} logos max per sheet`);
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // ✅ drawLogo is now simplified, because PDFs are pre-rotated
+    // ✅ Now always embed as PNG
+    const embedFunc = async (doc) => {
+      return await doc.embedPng(finalPngBuffer);
+    };
+
+    // ✅ drawLogo is always a simple image draw now
     const drawLogo = (page, embeddedAsset, x, y) => {
-      if (assetType === "pdf") {
-        page.drawPage(embeddedAsset, { x, y });
-      } else {
-        page.drawImage(embeddedAsset, {
-          x,
-          y,
-          width: logoWidthPts,
-          height: logoHeightPts
-        });
-      }
+      page.drawImage(embeddedAsset, {
+        x,
+        y,
+        width: logoWidthPts,
+        height: logoHeightPts
+      });
     };
 
     // ✅ SINGLE-SHEET MODE
@@ -202,20 +163,14 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
       const filename = `gangsheet_${SHEET_WIDTH_INCH}x${finalHeightInch}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${filename}"`
-      );
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       return res.send(Buffer.from(pdfBytes));
     }
 
     // ✅ MULTI-SHEET MODE
     log(`Multi-sheet mode triggered with ${totalSheetsNeeded} sheets`);
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="gangsheets.zip"`
-    );
+    res.setHeader("Content-Disposition", `attachment; filename="gangsheets.zip"`);
     const archive = archiver("zip");
     archive.pipe(res);
 
