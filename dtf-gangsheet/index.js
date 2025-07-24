@@ -1,162 +1,191 @@
 import express from "express";
 import multer from "multer";
-import { PDFDocument, degrees } from "pdf-lib";
+import { PDFDocument } from "pdf-lib";
 import archiver from "archiver";
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
-app.use(express.static("public"));
+const PORT = process.env.PORT || 8080;
 
+// Constants
 const SHEET_WIDTH_INCH = 22;
 const MAX_SHEET_HEIGHT_INCH = 200;
+const POINTS_PER_INCH = 72; // pdf-lib uses points
 const SAFE_MARGIN_INCH = 0.125;
 const SPACING_INCH = 0.5;
-const POINTS_PER_INCH = 72;
 
-app.get("/", (req, res) => {
-  res.send("✅ Gang Sheet backend with ZIP support & debug logs is running!");
-});
+app.use(express.static("public"));
 
+// Helper to log consistently
+function log(msg) {
+  console.log(`[DEBUG] ${msg}`);
+}
+
+// MAIN ROUTE
 app.post("/merge", upload.single("file"), async (req, res) => {
-  console.log("📥 /merge route hit!");
-
   try {
-    if (!req.file) {
-      console.error("❌ No file received!");
-      return res.status(400).send("No file uploaded!");
-    }
+    log("/merge route hit!");
 
-    const qty = parseInt(req.query.qty || "10");
-    const rotateAngle = parseInt(req.query.rotate || "0");
-    console.log(`➡️ Requested quantity: ${qty}, rotate: ${rotateAngle}`);
+    const quantity = parseInt(req.body.quantity, 10);
+    const rotate = req.body.rotate === "true";
+    const uploadedFile = req.file;
 
-    const uploadedPDF = req.file.buffer;
-    console.log(`📄 Uploaded PDF size: ${uploadedPDF.length} bytes`);
+    if (!uploadedFile) throw new Error("No file uploaded");
+    if (!quantity || quantity <= 0) throw new Error("Invalid quantity");
+
+    log(`Requested quantity: ${quantity}, rotate: ${rotate}`);
+    log(`Uploaded PDF size: ${uploadedFile.size} bytes`);
 
     // Load the uploaded PDF
-    const srcDoc = await PDFDocument.load(uploadedPDF);
-    const tempDoc = await PDFDocument.create();
-    const [embeddedPage] = await tempDoc.embedPdf(await srcDoc.save());
-    console.log("✅ Successfully embedded PDF page");
+    const uploadedPdf = await PDFDocument.load(uploadedFile.buffer);
+    const uploadedPage = uploadedPdf.getPages()[0];
+    let { width: logoWidth, height: logoHeight } = uploadedPage.getSize();
 
-    let originalWidth = embeddedPage.width;
-    let originalHeight = embeddedPage.height;
+    // Rotate if needed
+    if (rotate) [logoWidth, logoHeight] = [logoHeight, logoWidth];
 
-    const isRotated = rotateAngle === 90 || rotateAngle === 270;
-    const logoWidthPts = isRotated ? originalHeight : originalWidth;
-    const logoHeightPts = isRotated ? originalWidth : originalHeight;
-
-    const marginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
+    const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
     const spacingPts = SPACING_INCH * POINTS_PER_INCH;
 
     const sheetWidthPts = SHEET_WIDTH_INCH * POINTS_PER_INCH;
-    const maxSheetHeightPts = MAX_SHEET_HEIGHT_INCH * POINTS_PER_INCH;
-    const usableWidth = sheetWidthPts - marginPts * 2;
-    const perRow = Math.floor((usableWidth + spacingPts) / (logoWidthPts + spacingPts));
+    const maxHeightPts = MAX_SHEET_HEIGHT_INCH * POINTS_PER_INCH;
 
-    console.log(`🧮 Can fit ${perRow} per row`);
+    const logoTotalWidth = logoWidth + spacingPts;
+    const logoTotalHeight = logoHeight + spacingPts;
 
-    let remaining = qty;
-    let allSheets = [];
-    let sheetIndex = 1;
+    // How many logos per row?
+    const logosPerRow = Math.floor(
+      (sheetWidthPts - safeMarginPts * 2 + spacingPts) / logoTotalWidth
+    );
+    if (logosPerRow < 1) throw new Error("Logo too wide for sheet");
+    log(`Can fit ${logosPerRow} per row`);
 
-    while (remaining > 0) {
-      const rowsNeeded = Math.ceil(remaining / perRow);
-      const requiredHeightPts =
-        marginPts * 2 + rowsNeeded * logoHeightPts + (rowsNeeded - 1) * spacingPts;
+    // How many rows fit per sheet?
+    const rowsPerSheet = Math.floor(
+      (maxHeightPts - safeMarginPts * 2 + spacingPts) / logoTotalHeight
+    );
+    const logosPerSheet = logosPerRow * rowsPerSheet;
 
-      const sheetHeightPts = Math.min(requiredHeightPts, maxSheetHeightPts);
+    log(
+      `Each sheet max ${rowsPerSheet} rows → ${logosPerSheet} logos max per sheet`
+    );
 
-      const rowsPerSheet = Math.floor(
-        (sheetHeightPts - marginPts * 2 + spacingPts) / (logoHeightPts + spacingPts)
-      );
-      const maxPerSheet = rowsPerSheet * perRow;
+    const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
+    log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-      const actualHeightInches = Math.ceil(sheetHeightPts / POINTS_PER_INCH);
+    // Single-sheet mode? Easy ✅
+    if (totalSheetsNeeded === 1) {
+      const pdfDoc = await PDFDocument.create();
+      const [embeddedPage] = await pdfDoc.embedPdf(uploadedFile.buffer);
 
-      console.log(
-        `📄 Creating sheet #${sheetIndex}: ${SHEET_WIDTH_INCH}x${actualHeightInches} inches, can hold ${maxPerSheet} logos`
-      );
+      let placed = 0;
+      let yCursor =
+        maxHeightPts - safeMarginPts - logoHeight; // top-down placement
 
-      const gangDoc = await PDFDocument.create();
-      const gangPage = gangDoc.addPage([sheetWidthPts, sheetHeightPts]);
-
-      let placedOnThisSheet = 0;
-
-      for (let row = 0; row < rowsPerSheet && remaining > 0; row++) {
-        for (let col = 0; col < perRow && remaining > 0; col++) {
-          const baseX = marginPts + col * (logoWidthPts + spacingPts);
-          const baseY =
-            sheetHeightPts - marginPts - (row + 1) * logoHeightPts - row * spacingPts;
-
-          if (rotateAngle === 90) {
-            gangPage.drawPage(embeddedPage, {
-              x: baseX + logoWidthPts,
-              y: baseY,
-              width: originalWidth,
-              height: originalHeight,
-              rotate: degrees(90)
-            });
-          } else {
-            gangPage.drawPage(embeddedPage, {
-              x: baseX,
-              y: baseY,
-              width: originalWidth,
-              height: originalHeight
-            });
-          }
-
-          remaining--;
-          placedOnThisSheet++;
+      while (placed < quantity) {
+        let xCursor = safeMarginPts;
+        for (let c = 0; c < logosPerRow && placed < quantity; c++) {
+          pdfDoc.addPage([sheetWidthPts, maxHeightPts]);
+          const page = pdfDoc.getPages()[0];
+          page.drawPage(embeddedPage, { x: xCursor, y: yCursor });
+          placed++;
+          xCursor += logoTotalWidth;
         }
+        yCursor -= logoTotalHeight;
       }
 
-      console.log(`✅ Placed ${placedOnThisSheet} logos on sheet #${sheetIndex}`);
+      // Round up final height
+      const usedRows = Math.ceil(quantity / logosPerRow);
+      const usedHeightPts =
+        usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
+      const roundedHeightPts =
+        Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
 
-      const finalPDF = await gangDoc.save();
-      allSheets.push({
-        filename: `gangsheet_${SHEET_WIDTH_INCH}x${actualHeightInches}.pdf`,
-        buffer: finalPDF
-      });
+      const finalPage = pdfDoc.getPages()[0];
+      finalPage.setSize(sheetWidthPts, roundedHeightPts);
 
-      sheetIndex++;
-    }
-
-    console.log(`✅ Total sheets generated: ${allSheets.length}`);
-
-    // ✅ If more than 1 sheet, ZIP them
-    if (allSheets.length > 1) {
-      console.log("📦 Creating ZIP file with multiple sheets...");
-      res.setHeader("Content-Type", "application/zip");
-      res.setHeader(
-        "Content-Disposition",
-        "attachment; filename=gangsheets_bundle.zip"
+      const pdfBytes = await pdfDoc.save();
+      const finalHeightInch = Math.ceil(
+        roundedHeightPts / POINTS_PER_INCH
       );
 
-      const archive = archiver("zip", { zlib: { level: 9 } });
-      archive.pipe(res);
-
-      for (const sheet of allSheets) {
-        archive.append(sheet.buffer, { name: sheet.filename });
-        console.log(`📄 Added ${sheet.filename} to ZIP`);
-      }
-
-      archive.finalize();
-    } else {
-      console.log(`⬇️ Sending single PDF: ${allSheets[0].filename}`);
+      const filename = `gangsheet_${SHEET_WIDTH_INCH}x${finalHeightInch}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename=${allSheets[0].filename}`
-      );
-      res.end(Buffer.from(allSheets[0].buffer));
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      return res.send(Buffer.from(pdfBytes));
     }
+
+    // MULTI-SHEET MODE 🚀
+    log(`Multi-sheet mode triggered with ${totalSheetsNeeded} sheets`);
+
+    // Init archive for ZIP
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="gangsheets.zip"`
+    );
+
+    const archive = archiver("zip");
+    archive.pipe(res);
+
+    let remaining = quantity;
+    for (let sheetIndex = 0; sheetIndex < totalSheetsNeeded; sheetIndex++) {
+      log(`Generating sheet ${sheetIndex + 1}/${totalSheetsNeeded}...`);
+
+      const sheetDoc = await PDFDocument.create();
+      const [embeddedPage] = await sheetDoc.embedPdf(uploadedFile.buffer);
+
+      const page = sheetDoc.addPage([sheetWidthPts, maxHeightPts]);
+
+      let placed = 0;
+      let yCursor =
+        maxHeightPts - safeMarginPts - logoHeight; // top-down placement
+
+      const logosOnThisSheet = Math.min(remaining, logosPerSheet);
+
+      let drawn = 0;
+      while (drawn < logosOnThisSheet) {
+        let xCursor = safeMarginPts;
+        for (let c = 0; c < logosPerRow && drawn < logosOnThisSheet; c++) {
+          page.drawPage(embeddedPage, { x: xCursor, y: yCursor });
+          drawn++;
+          remaining--;
+          xCursor += logoTotalWidth;
+        }
+        yCursor -= logoTotalHeight;
+      }
+
+      // Compute height actually used
+      const usedRows = Math.ceil(logosOnThisSheet / logosPerRow);
+      const usedHeightPts =
+        usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
+      const roundedHeightPts =
+        Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
+
+      page.setSize(sheetWidthPts, roundedHeightPts);
+
+      // Save this sheet as Buffer
+      const pdfBytes = await sheetDoc.save(); // returns Uint8Array
+      const pdfBuffer = Buffer.from(pdfBytes); // ✅ fix: convert to Node Buffer
+
+      const finalHeightInch = Math.ceil(
+        roundedHeightPts / POINTS_PER_INCH
+      );
+      const filename = `gangsheet_${SHEET_WIDTH_INCH}x${finalHeightInch}.pdf`;
+
+      log(`Appending ${filename} to ZIP`);
+      archive.append(pdfBuffer, { name: filename });
+    }
+
+    archive.finalize();
   } catch (err) {
-    console.error("❌ MERGE ERROR:", err);
-    res.status(500).send("❌ Failed to generate gang sheet.");
+    console.error("MERGE ERROR:", err);
+    res.status(500).send(`Server error: ${err.message}`);
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
+// START SERVER
+app.listen(PORT, () => {
+  console.log(`Backend running on port ${PORT}`);
+});
