@@ -2,144 +2,136 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Upload PDF/PNG for Gang Sheet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload PDF for Gang Sheet</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #f6f6f6;
+      margin: 2rem;
+      background: #f8f8f8;
     }
     h1 {
-      margin-bottom: 10px;
+      font-size: 1.5rem;
     }
-    .log {
-      margin-top: 20px;
-      padding: 10px;
+    label {
+      display: block;
+      margin-top: 1rem;
+    }
+    input, select, button {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      font-size: 1rem;
+    }
+    #log {
+      margin-top: 1.5rem;
+      padding: 1rem;
       background: #fff;
       border: 1px solid #ccc;
+      white-space: pre-wrap;
       font-family: monospace;
       max-height: 300px;
       overflow-y: auto;
     }
-    .log-line {
-      margin: 2px 0;
-    }
-    .log-time {
-      color: #666;
-    }
-    .ok { color: green; }
-    .error { color: red; }
   </style>
 </head>
 <body>
-  <h1>Upload PDF or PNG for Gang Sheet</h1>
+  <h1>Upload PDF for Gang Sheet</h1>
 
   <form id="uploadForm">
-    <label>Select PDF or PNG file:
-      <input type="file" id="file" name="file" accept="application/pdf,image/png" required />
+    <label>
+      Select PDF file:
+      <input type="file" id="file" name="file" accept="application/pdf" required />
     </label>
-    <br><br>
 
-    <label>Quantity:
-      <input type="number" id="quantity" name="quantity" required min="1" />
+    <label>
+      Quantity:
+      <input type="number" id="quantity" name="quantity" min="1" required />
     </label>
-    <br><br>
 
-    <label>Rotate 90°?
+    <label>
+      Rotate 90°?
       <select id="rotate" name="rotate">
         <option value="false">No</option>
         <option value="true">Yes</option>
       </select>
     </label>
-    <br><br>
 
     <button type="submit">Generate Gang Sheet</button>
   </form>
 
-  <div class="log" id="log"></div>
+  <div id="log"></div>
 
   <script>
-    const logDiv = document.getElementById('log');
-    function log(message, type = '') {
-      const now = new Date().toLocaleTimeString();
-      const line = document.createElement('div');
-      line.className = 'log-line ' + type;
-      line.innerHTML = `<span class="log-time">[${now}]</span> ${message}`;
-      logDiv.appendChild(line);
-      logDiv.scrollTop = logDiv.scrollHeight;
+    const form = document.getElementById("uploadForm");
+    const logEl = document.getElementById("log");
+
+    function log(msg) {
+      const timestamp = new Date().toLocaleTimeString();
+      logEl.textContent += `[${timestamp}] ${msg}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
     }
 
-    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      logDiv.innerHTML = '';
 
-      const fileInput = document.getElementById('file');
-      const quantity = document.getElementById('quantity').value;
-      const rotate = document.getElementById('rotate').value;
+      const fileInput = document.getElementById("file");
+      const quantityInput = document.getElementById("quantity");
+      const rotateSelect = document.getElementById("rotate");
 
-      if (!fileInput.files.length) {
-        log('❌ No file selected', 'error');
+      const file = fileInput.files[0];
+      const quantity = quantityInput.value;
+      const rotate = rotateSelect.value;
+
+      if (!file) {
+        alert("Please select a PDF file");
         return;
       }
 
-      const file = fileInput.files[0];
-      const fileType = file.type;
-      log(`📄 Preparing upload of: ${file.name} (${fileType})`);
-      log(`➡️ Quantity: ${quantity}, Rotate: ${rotate}`);
+      log("📂 Preparing upload of: " + file.name + " (" + file.type + ")");
+      log("➡️ Quantity: " + quantity + ", Rotate: " + rotate);
 
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('quantity', quantity);
-      formData.append('rotate', rotate);
+      formData.append("file", file);
+      formData.append("quantity", quantity);
+      formData.append("rotate", rotate);
 
       try {
-        log('⏳ Sending to server...');
-        const response = await fetch('/merge', {
-          method: 'POST',
+        log("⏳ Sending to server...");
+        const response = await fetch("/merge", {
+          method: "POST",
           body: formData
         });
 
-        const contentType = response.headers.get('Content-Type') || '';
-        const disposition = response.headers.get('Content-Disposition') || '';
-
-        log(`✅ Server responded (${response.status})`);
-        log(`🔎 Content-Type: ${contentType}`);
-        log(`🔎 Content-Disposition: ${disposition}`);
+        log("✅ Server responded (" + response.status + ")");
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const contentType = response.headers.get("Content-Type") || "";
+        log("🔍 Content-Type: " + contentType);
+        log("🔍 Content-Disposition: " + disposition);
 
         if (!response.ok) {
-          const errorText = await response.text();
-          log(`❌ Server error: ${errorText}`, 'error');
+          const errText = await response.text();
+          log("❌ Server error: " + errText);
           return;
         }
 
         const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
 
-        let filename = 'gangsheet_output';
+        // Extract filename from headers or fallback
+        let filename = "gangsheet.pdf";
         const match = disposition.match(/filename="(.+)"/);
         if (match) filename = match[1];
 
-        if (contentType.includes('zip')) {
-          log('📦 ZIP detected -> multiple sheets returned');
-        } else if (contentType.includes('pdf')) {
-          log('📄 Single PDF detected -> single sheet returned');
-        } else {
-          log('⚠️ Unknown content type, saving anyway...');
-        }
-
-        // Download
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
         a.remove();
-        window.URL.revokeObjectURL(url);
 
-        log(`✅ File downloaded as: ${filename}`, 'ok');
-
+        log("✅ Downloaded: " + filename);
       } catch (err) {
-        log(`❌ Failed to generate gang sheet: ${err.message}`, 'error');
+        log("❌ Fetch error: " + err.message);
       }
     });
   </script>
