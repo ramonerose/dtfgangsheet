@@ -110,13 +110,13 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // ✅ drawLogo handles correct method for PDF vs PNG
+    // ✅ drawLogo handles correct placement logic
     const drawLogo = (page, embeddedAsset, x, y) => {
       if (assetType === "pdf") {
-        // PDF placement
+        // ✅ PDF placement
         if (rotate) {
           page.drawPage(embeddedAsset, {
-            x: x + logoHeightPts, // shift RIGHT
+            x: x + logoHeightPts, // shift RIGHT by rotated width
             y,
             rotate: degrees(90)
           });
@@ -124,13 +124,13 @@ app.post("/merge", upload.single("file"), async (req, res) => {
           page.drawPage(embeddedAsset, { x, y });
         }
       } else {
-        // PNG placement
+        // ✅ PNG placement
         if (rotate) {
-          // ✅ NEW: Align rotated PNG inside grid cell
+          // Rotate inside grid cell: shift DOWN by rotated height
           page.drawImage(embeddedAsset, {
-            x: x,                            // stay at same X
-            y: y - logoHeightPts + spacingPts, // shift DOWN by rotated height so it stays in cell
-            width: logoHeightPts,            // swapped width/height
+            x: x,                            
+            y: y - logoHeightPts + spacingPts, // keep it inside cell
+            width: logoHeightPts,             // swapped width/height
             height: logoWidthPts,
             rotate: degrees(90)
           });
