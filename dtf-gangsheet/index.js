@@ -114,10 +114,10 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     // ✅ drawLogo handles correct method for PDF vs PNG
     const drawLogo = (page, embeddedAsset, x, y) => {
       if (assetType === "pdf") {
-        // PDF placement
+        // ✅ PDF placement
         if (rotate) {
           page.drawPage(embeddedAsset, {
-            x: x + logoHeightPts,
+            x: x + logoHeightPts,  // shift RIGHT by rotated width
             y,
             rotate: degrees(90)
           });
@@ -125,13 +125,13 @@ app.post("/merge", upload.single("file"), async (req, res) => {
           page.drawPage(embeddedAsset, { x, y });
         }
       } else {
-        // PNG placement
+        // ✅ PNG placement
         if (rotate) {
-          // ✅ Final fix: match PDF offset (shift RIGHT by original height, keep same Y)
+          // For PNGs, shift UP by rotated height instead of right
           page.drawImage(embeddedAsset, {
-            x: x + logoHeightPts,
-            y: y,
-            width: logoHeightPts,   // swapped dimensions
+            x: x,
+            y: y + logoHeightPts,   // shift UP by rotated height
+            width: logoHeightPts,   // swapped dims
             height: logoWidthPts,
             rotate: degrees(90)
           });
