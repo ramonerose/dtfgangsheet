@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import { PDFDocument, degrees } from "pdf-lib";
+import JSZip from "jszip"; // ✅ new dependency
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -15,14 +16,13 @@ const SPACING_INCH = 0.5;
 const POINTS_PER_INCH = 72;
 
 app.get("/", (req, res) => {
-  res.send("✅ Gang Sheet PDF backend with multi-sheet separate downloads is running!");
+  res.send("✅ Gang Sheet backend with zip support is running!");
 });
 
-// ✅ Serve individual sheets as separate downloadable links
 app.post("/merge", upload.single("file"), async (req, res) => {
   try {
     const qty = parseInt(req.query.qty || "10");
-    const rotateAngle = parseInt(req.query.rotate || "0"); // 0 or 90
+    const rotateAngle = parseInt(req.query.rotate || "0");
 
     const uploadedPDF = req.file.buffer;
 
@@ -51,20 +51,20 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
     let remaining = qty;
     let sheetIndex = 1;
-    const generatedSheets = []; // Array to hold each sheet's PDF buffer & name
+    const generatedSheets = []; // Array of { name, buffer }
 
     while (remaining > 0) {
-      // Calculate how many rows are needed for remaining logos
+      // Calculate rows needed for remaining logos
       const rowsNeeded = Math.ceil(remaining / perRow);
 
       // Calculate required height for those rows
       const requiredHeightPts =
         marginPts * 2 + rowsNeeded * logoHeightPts + (rowsNeeded - 1) * spacingPts;
 
-      // Cap height to max allowed (200 inches)
+      // Cap at max allowed height (200 inches)
       let sheetHeightPts = Math.min(requiredHeightPts, maxSheetHeightPts);
 
-      // Calculate how many rows can fit on THIS sheet
+      // How many rows fit on THIS sheet
       const rowsPerSheet = Math.floor(
         (sheetHeightPts - marginPts * 2 + spacingPts) / (logoHeightPts + spacingPts)
       );
@@ -78,17 +78,17 @@ app.post("/merge", upload.single("file"), async (req, res) => {
         rowsPerSheet * logoHeightPts +
         (rowsPerSheet - 1) * spacingPts;
 
-      // Round UP to the next full inch for height
+      // ✅ Round UP to next full inch
       const roundedHeightInches = Math.ceil(usedHeightPts / POINTS_PER_INCH);
       sheetHeightPts = roundedHeightInches * POINTS_PER_INCH;
 
-      // Create a brand-new PDF for THIS sheet
+      // Create a new PDF for THIS sheet
       const sheetDoc = await PDFDocument.create();
       const sheetPage = sheetDoc.addPage([sheetWidthPts, sheetHeightPts]);
 
       let placedOnThisSheet = 0;
 
-      // Place logos row by row for this sheet
+      // Place logos row by row
       for (let row = 0; row < rowsPerSheet && remaining > 0; row++) {
         for (let col = 0; col < perRow && remaining > 0; col++) {
           const baseX = marginPts + col * (logoWidthPts + spacingPts);
@@ -119,28 +119,39 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
       console.log(`✅ Placed ${placedOnThisSheet} logos on sheet ${sheetIndex}`);
 
-      // Save this single sheet as its own PDF buffer
+      // Save this single sheet
       const sheetBuffer = await sheetDoc.save();
       const sheetName = `gangsheet_${SHEET_WIDTH_INCH}x${roundedHeightInches}.pdf`;
 
-      // Store sheet in memory
+      // Store it
       generatedSheets.push({ name: sheetName, data: sheetBuffer });
 
       sheetIndex++;
     }
 
-    // ✅ Build an HTML page with individual download links
-    let htmlResponse = `<h2>✅ Your gang sheets are ready:</h2><ul>`;
-    generatedSheets.forEach((sheet, idx) => {
-      const id = `sheet${idx}`;
-      // Save sheet temporarily in memory (so we can serve by ID)
-      app.locals[id] = sheet;
-      htmlResponse += `<li><a href="/download/${id}" target="_blank">${sheet.name}</a></li>`;
-    });
-    htmlResponse += `</ul>`;
+    console.log(`✅ Finished! Total sheets generated: ${generatedSheets.length}`);
 
-    res.setHeader("Content-Type", "text/html");
-    res.send(htmlResponse);
+    // ✅ If only ONE sheet → just return that PDF
+    if (generatedSheets.length === 1) {
+      const sheet = generatedSheets[0];
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename=${sheet.name}`);
+      res.setHeader("Content-Length", sheet.data.length);
+      return res.end(Buffer.from(sheet.data));
+    }
+
+    // ✅ If MULTIPLE sheets → build a ZIP archive
+    const zip = new JSZip();
+    generatedSheets.forEach(sheet => {
+      zip.file(sheet.name, sheet.data);
+    });
+
+    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", "attachment; filename=gangsheets.zip");
+    res.setHeader("Content-Length", zipBuffer.length);
+    res.end(zipBuffer);
 
   } catch (err) {
     console.error("❌ MERGE ERROR:", err);
@@ -148,18 +159,5 @@ app.post("/merge", upload.single("file"), async (req, res) => {
   }
 });
 
-// ✅ Route to serve individual sheet downloads by ID
-app.get("/download/:id", (req, res) => {
-  const sheet = app.locals[req.params.id];
-  if (!sheet) {
-    return res.status(404).send("❌ Sheet not found");
-  }
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename=${sheet.name}`);
-  res.setHeader("Content-Length", sheet.data.length);
-  res.end(Buffer.from(sheet.data));
-});
-
-// ✅ Use Railway port or fallback to 3000
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
