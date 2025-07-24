@@ -1,57 +1,109 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>PDF Gang Sheet Generator</title>
+  <meta charset="UTF-8">
+  <title>Gang Sheet Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    h1 {
+      font-size: 22px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
+    }
+  </style>
 </head>
 <body>
-  <h1>Upload a PDF to Generate Gang Sheet</h1>
+  <h1>Upload PDF for Gang Sheet</h1>
 
-  <form id="uploadForm" enctype="multipart/form-data">
-    <label>Choose PDF:</label>
-    <input type="file" name="file" accept="application/pdf" required><br><br>
+  <form id="gangForm" enctype="multipart/form-data">
+    <!-- PDF upload -->
+    <label>Select PDF file:</label>
+    <input type="file" id="file" name="file" accept=".pdf" required>
 
+    <!-- Quantity -->
     <label>Quantity:</label>
-    <input type="number" name="qty" value="10" min="1" required><br><br>
+    <input type="number" id="qty" name="qty" min="1" value="10" required>
 
-    <label>Rotate?</label>
-    <select name="rotate">
+    <!-- Rotation yes/no -->
+    <label>Rotate 90°?</label>
+    <select id="rotate" name="rotate">
       <option value="0">No</option>
-      <option value="90">Yes (90°)</option>
-    </select><br><br>
+      <option value="90">Yes, rotate 90°</option>
+    </select>
 
+    <br><br>
     <button type="submit">Generate Gang Sheet</button>
   </form>
 
-  <script>
-    document.getElementById("uploadForm").addEventListener("submit", async function(event) {
-      event.preventDefault();
+  <div id="status" style="margin-top:20px; color:blue;"></div>
 
-      const form = event.target;
-      const fileInput = form.querySelector('input[name="file"]');
-      const qty = form.querySelector('input[name="qty"]').value;
-      const rotate = form.querySelector('select[name="rotate"]').value;
+  <script>
+    document.getElementById("gangForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const fileInput = document.getElementById("file");
+      const qty = document.getElementById("qty").value;
+      const rotate = document.getElementById("rotate").value;
+
+      if (!fileInput.files.length) {
+        alert("Please select a PDF file!");
+        return;
+      }
 
       const formData = new FormData();
       formData.append("file", fileInput.files[0]);
 
-      const response = await fetch(`/merge?qty=${qty}&rotate=${rotate}`, {
-        method: "POST",
-        body: formData
-      });
+      const statusDiv = document.getElementById("status");
+      statusDiv.innerHTML = "⏳ Generating gang sheet... please wait.";
 
-      if (!response.ok) {
-        alert("❌ Something went wrong generating the gang sheet!");
-        return;
+      try {
+        const response = await fetch(`/merge?qty=${qty}&rotate=${rotate}`, {
+          method: "POST",
+          body: formData
+        });
+
+        if (!response.ok) {
+          statusDiv.innerHTML = "❌ Failed to generate gang sheet.";
+          return;
+        }
+
+        // ✅ If PDF, trigger download
+        const blob = await response.blob();
+        const filename = response.headers.get("Content-Disposition")
+          ?.split("filename=")[1]
+          ?.replace(/"/g, "") || "gangsheet.pdf";
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        statusDiv.innerHTML = `✅ Gang sheet generated: <strong>${filename}</strong>`;
+      } catch (err) {
+        console.error(err);
+        statusDiv.innerHTML = "❌ Error generating gang sheet.";
       }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "gangsheet.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
     });
   </script>
 </body>
