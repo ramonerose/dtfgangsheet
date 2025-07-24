@@ -2,7 +2,7 @@ import express from "express";
 import multer from "multer";
 import { PDFDocument, degrees } from "pdf-lib";
 import archiver from "archiver";
-import sharp from "sharp"; // ✅ For proper PNG rotation
+import sharp from "sharp";
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -140,10 +140,12 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const drawLogo = (page, embeddedAsset, x, y) => {
       if (assetType === "pdf") {
         if (rotate) {
-          // ✅ FIX: shift UP by original width so rotated PDF stays inside its cell
+          // ✅ FIXED: Shift BOTH X and Y to properly pivot around the grid cell
+          const rotatedX = x + logoHeightPts; // push right by original height
+          const rotatedY = y + (logoWidthPts - logoHeightPts); // adjust vertically
           page.drawPage(embeddedAsset, {
-            x,
-            y: y + logoWidthPts,
+            x: rotatedX,
+            y: rotatedY,
             rotate: degrees(90)
           });
         } else {
