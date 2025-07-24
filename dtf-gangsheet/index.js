@@ -140,10 +140,11 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const drawLogo = (page, embeddedAsset, x, y) => {
       if (assetType === "pdf") {
         if (rotate) {
-          // ✅ FIX: rotate PDF and shift DOWN by original width
+          // ✅ FIX: shift right by (original height - rotated width)
+          const shiftX = logoHeightPts - logoWidthPts;
           page.drawPage(embeddedAsset, {
-            x,
-            y: y - logoWidthPts,
+            x: x + shiftX,
+            y,
             rotate: degrees(90)
           });
         } else {
