@@ -1,9 +1,7 @@
 import express from "express";
 import multer from "multer";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, degrees } from "pdf-lib";
 import archiver from "archiver";
-import sharp from "sharp";
-import { fromBuffer } from "pdf2pic"; // ✅ PDF → PNG converter
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -15,48 +13,11 @@ const MAX_SHEET_HEIGHT_INCH = 200;
 const POINTS_PER_INCH = 72;
 const SAFE_MARGIN_INCH = 0.125;
 const SPACING_INCH = 0.5;
-const PNG_DEFAULT_DPI = 300;
 
 app.use(express.static("public"));
 
 function log(msg) {
   console.log(`[DEBUG] ${msg}`);
-}
-
-// ✅ Rotate any PNG buffer
-async function rotateIfNeeded(buffer, rotateFlag) {
-  if (!rotateFlag) return buffer;
-  log("Rotating image 90° clockwise...");
-  return await sharp(buffer).rotate(90).toBuffer();
-}
-
-// ✅ Convert PDF → PNG buffer at 300 DPI
-async function convertPdfToPngBuffer(pdfBuffer) {
-  log("Converting PDF to PNG (300 DPI)...");
-  const converter = fromBuffer(pdfBuffer, {
-    density: PNG_DEFAULT_DPI,
-    format: "png",
-    width: undefined,
-    height: undefined,
-    saveFilename: "temp",
-    savePath: "/tmp"
-  });
-
-  const pngPage = await converter(1, { responseType: "buffer" });
-  const pngBuffer = pngPage.buffer;
-  log("PDF → PNG conversion done.");
-  return pngBuffer;
-}
-
-// ✅ Extract PNG dimensions (in points)
-async function getPngDimensions(buffer) {
-  const metadata = await sharp(buffer).metadata();
-  const widthInches = metadata.width / PNG_DEFAULT_DPI;
-  const heightInches = metadata.height / PNG_DEFAULT_DPI;
-  const widthPts = widthInches * POINTS_PER_INCH;
-  const heightPts = heightInches * POINTS_PER_INCH;
-  log(`Image size: ${widthInches.toFixed(2)}" x ${heightInches.toFixed(2)}"`);
-  return { widthPts, heightPts };
 }
 
 app.post("/merge", upload.single("file"), async (req, res) => {
@@ -71,34 +32,25 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     if (!quantity || quantity <= 0) throw new Error("Invalid quantity");
 
     const originalName = uploadedFile.originalname.toLowerCase();
-    const isPNG = originalName.endsWith(".png");
-    const isPDF = originalName.endsWith(".pdf");
-
-    log(`Uploaded: ${uploadedFile.originalname} | PNG? ${isPNG} | PDF? ${isPDF}`);
-    log(`Requested quantity: ${quantity}, rotate: ${rotate}`);
-
-    let finalPngBuffer;
-
-    if (isPDF) {
-      // ✅ Step 1: Convert PDF → PNG
-      const convertedPng = await convertPdfToPngBuffer(uploadedFile.buffer);
-      // ✅ Step 2: Rotate if requested
-      finalPngBuffer = await rotateIfNeeded(convertedPng, rotate);
-    } else if (isPNG) {
-      // ✅ Already PNG, just rotate if needed
-      finalPngBuffer = await rotateIfNeeded(uploadedFile.buffer, rotate);
-    } else {
-      throw new Error("Unsupported file type. Please upload PDF or PNG.");
+    if (!originalName.endsWith(".pdf")) {
+      throw new Error("Only PDF uploads supported in this stable version");
     }
 
-    // ✅ Get normalized PNG size
-    const { widthPts: logoWidthPts, heightPts: logoHeightPts } = await getPngDimensions(finalPngBuffer);
+    log(`Uploaded PDF: ${uploadedFile.originalname}`);
+    log(`Requested quantity: ${quantity}, rotate: ${rotate}`);
 
     const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
     const spacingPts = SPACING_INCH * POINTS_PER_INCH;
 
     const sheetWidthPts = SHEET_WIDTH_INCH * POINTS_PER_INCH;
     const maxHeightPts = MAX_SHEET_HEIGHT_INCH * POINTS_PER_INCH;
+
+    // ✅ Extract the uploaded PDF page
+    const sourceDoc = await PDFDocument.load(uploadedFile.buffer);
+    const [firstPage] = await sourceDoc.copyPages(sourceDoc, [0]);
+    const logoWidthPts = firstPage.getWidth();
+    const logoHeightPts = firstPage.getHeight();
+    log(`Source logo size: ${logoWidthPts} x ${logoHeightPts} pts`);
 
     const logoTotalWidth = logoWidthPts + spacingPts;
     const logoTotalHeight = logoHeightPts + spacingPts;
@@ -113,45 +65,52 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       (maxHeightPts - safeMarginPts * 2 + spacingPts) / logoTotalHeight
     );
     const logosPerSheet = logosPerRow * rowsPerSheet;
-
     log(`Each sheet max ${rowsPerSheet} rows -> ${logosPerSheet} logos max per sheet`);
+
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // ✅ Now always embed as PNG
-    const embedFunc = async (doc) => {
-      return await doc.embedPng(finalPngBuffer);
-    };
-
-    // ✅ drawLogo is always a simple image draw now
-    const drawLogo = (page, embeddedAsset, x, y) => {
-      page.drawImage(embeddedAsset, {
-        x,
-        y,
-        width: logoWidthPts,
-        height: logoHeightPts
-      });
+    // ✅ drawLogo now only handles PDFs (rotate if needed)
+    const drawLogo = (page, embeddedPage, x, y) => {
+      if (rotate) {
+        page.drawPage(embeddedPage, {
+          x,
+          y,
+          width: logoHeightPts,
+          height: logoWidthPts,
+          rotate: degrees(90)
+        });
+      } else {
+        page.drawPage(embeddedPage, {
+          x,
+          y,
+          width: logoWidthPts,
+          height: logoHeightPts
+        });
+      }
     };
 
     // ✅ SINGLE-SHEET MODE
     if (totalSheetsNeeded === 1) {
       const pdfDoc = await PDFDocument.create();
-      const embeddedAsset = await embedFunc(pdfDoc);
+      const page = pdfDoc.addPage();
 
+      // Height based on required rows
       const usedRows = Math.ceil(quantity / logosPerRow);
       const usedHeightPts =
         usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
       const roundedHeightPts =
         Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
 
-      const page = pdfDoc.addPage([sheetWidthPts, roundedHeightPts]);
+      page.setSize(sheetWidthPts, roundedHeightPts);
+
       let yCursor = roundedHeightPts - safeMarginPts - logoHeightPts;
       let placed = 0;
 
       while (placed < quantity) {
         let xCursor = safeMarginPts;
         for (let c = 0; c < logosPerRow && placed < quantity; c++) {
-          drawLogo(page, embeddedAsset, xCursor, yCursor);
+          drawLogo(page, firstPage, xCursor, yCursor);
           placed++;
           xCursor += logoTotalWidth;
         }
@@ -180,9 +139,8 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       log(`Generating sheet ${sheetIndex + 1}/${totalSheetsNeeded}...`);
 
       const sheetDoc = await PDFDocument.create();
-      const embeddedAsset = await embedFunc(sheetDoc);
-
       const logosOnThisSheet = Math.min(remaining, logosPerSheet);
+
       const usedRows = Math.ceil(logosOnThisSheet / logosPerRow);
       const usedHeightPts =
         usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
@@ -196,7 +154,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       while (drawn < logosOnThisSheet) {
         let xCursor = safeMarginPts;
         for (let c = 0; c < logosPerRow && drawn < logosOnThisSheet; c++) {
-          drawLogo(page, embeddedAsset, xCursor, yCursor);
+          drawLogo(page, firstPage, xCursor, yCursor);
           drawn++;
           remaining--;
           xCursor += logoTotalWidth;
