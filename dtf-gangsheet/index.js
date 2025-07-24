@@ -111,22 +111,27 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // drawLogo handles correct method for PDF vs PNG
+    // ✅ drawLogo handles correct method for PDF vs PNG, fixed rotated PNG offset
     const drawLogo = (page, embeddedAsset, x, y) => {
       if (assetType === "pdf") {
-        // PDF logo placement
+        // PDF placement
         if (rotate) {
-          page.drawPage(embeddedAsset, { x: x + logoHeightPts, y, rotate: degrees(90) });
+          page.drawPage(embeddedAsset, {
+            x: x + logoHeightPts,
+            y,
+            rotate: degrees(90)
+          });
         } else {
           page.drawPage(embeddedAsset, { x, y });
         }
       } else {
-        // PNG logo placement
+        // PNG placement
         if (rotate) {
+          // ✅ Corrected offset: move UP by original width so rotated image stays inside grid
           page.drawImage(embeddedAsset, {
-            x: x + logoHeightPts,
-            y,
-            width: logoHeightPts,
+            x: x,
+            y: y + logoWidthPts,
+            width: logoHeightPts,  // swapped dimensions
             height: logoWidthPts,
             rotate: degrees(90)
           });
@@ -141,7 +146,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       }
     };
 
-    // SINGLE-SHEET MODE
+    // ✅ SINGLE-SHEET MODE
     if (totalSheetsNeeded === 1) {
       const pdfDoc = await PDFDocument.create();
       const embeddedAsset = await embedFunc(pdfDoc);
@@ -173,7 +178,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       return res.send(Buffer.from(pdfBytes));
     }
 
-    // MULTI-SHEET MODE
+    // ✅ MULTI-SHEET MODE
     log(`Multi-sheet mode triggered with ${totalSheetsNeeded} sheets`);
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="gangsheets.zip"`);
