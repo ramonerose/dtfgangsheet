@@ -1,77 +1,77 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Gang Sheet Generator</title>
+  <title>Upload PDF for Gang Sheet</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 40px;
-    }
-    h1 {
-      font-size: 22px;
-    }
-    label {
-      display: block;
-      margin-top: 10px;
-      font-weight: bold;
-    }
-    button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #45a049;
-    }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { font-size: 22px; }
+    .log { font-family: monospace; background: #f4f4f4; padding: 10px; border: 1px solid #ccc; margin-top: 10px; max-height: 200px; overflow-y: auto; }
+    .success { color: green; font-weight: bold; }
+    .error { color: red; font-weight: bold; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
   <h1>Upload PDF for Gang Sheet</h1>
-
-  <form id="gangForm" enctype="multipart/form-data">
-    <!-- PDF upload -->
+  
+  <form id="uploadForm">
     <label>Select PDF file:</label>
-    <input type="file" id="file" name="file" accept=".pdf" required>
-
-    <!-- Quantity -->
-    <label>Quantity:</label>
-    <input type="number" id="qty" name="qty" min="1" value="10" required>
-
-    <!-- Rotation yes/no -->
-    <label>Rotate 90°?</label>
-    <select id="rotate" name="rotate">
-      <option value="0">No</option>
-      <option value="90">Yes, rotate 90°</option>
-    </select>
-
+    <input type="file" id="fileInput" name="file" accept="application/pdf" required>
     <br><br>
+    
+    <label>Quantity:</label>
+    <input type="number" id="qtyInput" name="qty" value="10" required>
+    <br><br>
+    
+    <label>Rotate 90°?</label>
+    <select id="rotateInput" name="rotate">
+      <option value="0">No</option>
+      <option value="90">Yes</option>
+    </select>
+    <br><br>
+    
     <button type="submit">Generate Gang Sheet</button>
   </form>
-
-  <div id="status" style="margin-top:20px; color:blue;"></div>
+  
+  <div id="status" class="log hidden"></div>
+  <div id="result" class="hidden"></div>
 
   <script>
-    document.getElementById("gangForm").addEventListener("submit", async function (e) {
+    const form = document.getElementById("uploadForm");
+    const statusDiv = document.getElementById("status");
+    const resultDiv = document.getElementById("result");
+
+    function logMessage(msg, type = "info") {
+      const timestamp = new Date().toLocaleTimeString();
+      const color = type === "error" ? "red" : type === "success" ? "green" : "black";
+      statusDiv.innerHTML += `<div style="color:${color}">[${timestamp}] ${msg}</div>`;
+      statusDiv.classList.remove("hidden");
+      statusDiv.scrollTop = statusDiv.scrollHeight;
+    }
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      
+      statusDiv.innerHTML = "";
+      resultDiv.innerHTML = "";
+      resultDiv.classList.add("hidden");
+      
+      logMessage("📤 Preparing upload...");
 
-      const fileInput = document.getElementById("file");
-      const qty = document.getElementById("qty").value;
-      const rotate = document.getElementById("rotate").value;
+      const fileInput = document.getElementById("fileInput").files[0];
+      const qty = document.getElementById("qtyInput").value;
+      const rotate = document.getElementById("rotateInput").value;
 
-      if (!fileInput.files.length) {
-        alert("Please select a PDF file!");
+      if (!fileInput) {
+        logMessage("❌ No file selected!", "error");
         return;
       }
 
       const formData = new FormData();
-      formData.append("file", fileInput.files[0]);
+      formData.append("file", fileInput);
 
-      const statusDiv = document.getElementById("status");
-      statusDiv.innerHTML = "⏳ Generating gang sheet... please wait.";
+      logMessage(`➡️ Sending file: ${fileInput.name}`);
+      logMessage(`➡️ Quantity: ${qty}, Rotate: ${rotate}`);
 
       try {
         const response = await fetch(`/merge?qty=${qty}&rotate=${rotate}`, {
@@ -79,30 +79,42 @@
           body: formData
         });
 
+        logMessage("✅ Server responded, checking response headers...");
+
         if (!response.ok) {
-          statusDiv.innerHTML = "❌ Failed to generate gang sheet.";
+          logMessage(`❌ Server error: ${response.statusText}`, "error");
+          resultDiv.innerHTML = `<p class="error">❌ Failed to generate gang sheet.</p>`;
+          resultDiv.classList.remove("hidden");
           return;
         }
 
-        // ✅ If PDF, trigger download
+        const contentDisposition = response.headers.get("Content-Disposition");
+        const contentType = response.headers.get("Content-Type");
+        logMessage(`📄 Response Content-Type: ${contentType}`);
+        logMessage(`📄 Response Content-Disposition: ${contentDisposition}`);
+
         const blob = await response.blob();
-        const filename = response.headers.get("Content-Disposition")
-          ?.split("filename=")[1]
-          ?.replace(/"/g, "") || "gangsheet.pdf";
+
+        // Detect if it's a ZIP or single PDF
+        let filename = "gangsheet.pdf";
+        if (contentDisposition && contentDisposition.includes("filename=")) {
+          filename = contentDisposition.split("filename=")[1].replace(/"/g, "");
+        }
+
+        logMessage(`⬇️ Ready to download: ${filename}`, "success");
 
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
         a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-
-        statusDiv.innerHTML = `✅ Gang sheet generated: <strong>${filename}</strong>`;
+        a.textContent = `Click here to download ${filename}`;
+        resultDiv.innerHTML = "";
+        resultDiv.appendChild(a);
+        resultDiv.classList.remove("hidden");
       } catch (err) {
-        console.error(err);
-        statusDiv.innerHTML = "❌ Error generating gang sheet.";
+        logMessage(`❌ JS Fetch error: ${err.message}`, "error");
+        resultDiv.innerHTML = `<p class="error">❌ Failed to generate gang sheet.</p>`;
+        resultDiv.classList.remove("hidden");
       }
     });
   </script>
