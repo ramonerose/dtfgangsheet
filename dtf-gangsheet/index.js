@@ -33,7 +33,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
     const originalName = uploadedFile.originalname.toLowerCase();
     if (!originalName.endsWith(".pdf")) {
-      throw new Error("Only PDF uploads supported in this stable version");
+      throw new Error("ONLY PDF supported in this stable version");
     }
 
     log(`Uploaded PDF: ${uploadedFile.originalname}`);
@@ -52,8 +52,12 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const logoHeightPts = firstPage.getHeight();
     log(`Source logo size: ${logoWidthPts} x ${logoHeightPts} pts`);
 
-    const logoTotalWidth = logoWidthPts + spacingPts;
-    const logoTotalHeight = logoHeightPts + spacingPts;
+    // Determine rotated dimensions for spacing
+    const finalLogoWidth = rotate ? logoHeightPts : logoWidthPts;
+    const finalLogoHeight = rotate ? logoWidthPts : logoHeightPts;
+
+    const logoTotalWidth = finalLogoWidth + spacingPts;
+    const logoTotalHeight = finalLogoHeight + spacingPts;
 
     const logosPerRow = Math.floor(
       (sheetWidthPts - safeMarginPts * 2 + spacingPts) / logoTotalWidth
@@ -70,24 +74,15 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // ✅ drawLogo now only handles PDFs (rotate if needed)
+    // ✅ drawLogo strictly for PDFs
     const drawLogo = (page, embeddedPage, x, y) => {
-      if (rotate) {
-        page.drawPage(embeddedPage, {
-          x,
-          y,
-          width: logoHeightPts,
-          height: logoWidthPts,
-          rotate: degrees(90)
-        });
-      } else {
-        page.drawPage(embeddedPage, {
-          x,
-          y,
-          width: logoWidthPts,
-          height: logoHeightPts
-        });
-      }
+      page.drawPage(embeddedPage, {
+        x,
+        y,
+        width: finalLogoWidth,
+        height: finalLogoHeight,
+        rotate: rotate ? degrees(90) : undefined
+      });
     };
 
     // ✅ SINGLE-SHEET MODE
@@ -104,7 +99,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
       page.setSize(sheetWidthPts, roundedHeightPts);
 
-      let yCursor = roundedHeightPts - safeMarginPts - logoHeightPts;
+      let yCursor = roundedHeightPts - safeMarginPts - finalLogoHeight;
       let placed = 0;
 
       while (placed < quantity) {
@@ -148,7 +143,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
         Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
 
       const page = sheetDoc.addPage([sheetWidthPts, roundedHeightPts]);
-      let yCursor = roundedHeightPts - safeMarginPts - logoHeightPts;
+      let yCursor = roundedHeightPts - safeMarginPts - finalLogoHeight;
       let drawn = 0;
 
       while (drawn < logosOnThisSheet) {
