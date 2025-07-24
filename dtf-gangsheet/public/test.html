@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Upload PDF for Gang Sheet</title>
+  <title>Upload PDF/PNG for Gang Sheet</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -32,11 +32,11 @@
   </style>
 </head>
 <body>
-  <h1>Upload PDF for Gang Sheet</h1>
+  <h1>Upload PDF or PNG for Gang Sheet</h1>
 
   <form id="uploadForm">
-    <label>Select PDF file:
-      <input type="file" id="file" name="file" accept="application/pdf" required />
+    <label>Select PDF or PNG file:
+      <input type="file" id="file" name="file" accept="application/pdf,image/png" required />
     </label>
     <br><br>
 
@@ -83,8 +83,9 @@
       }
 
       const file = fileInput.files[0];
-      log(`📄 Preparing upload of: ${file.name}`);
-      log(`➡️  Quantity: ${quantity}, Rotate: ${rotate}`);
+      const fileType = file.type;
+      log(`📄 Preparing upload of: ${file.name} (${fileType})`);
+      log(`➡️ Quantity: ${quantity}, Rotate: ${rotate}`);
 
       const formData = new FormData();
       formData.append('file', file);
@@ -118,9 +119,9 @@
         if (match) filename = match[1];
 
         if (contentType.includes('zip')) {
-          log('📦 ZIP detected → multiple sheets returned');
+          log('📦 ZIP detected -> multiple sheets returned');
         } else if (contentType.includes('pdf')) {
-          log('📄 Single PDF detected → single sheet returned');
+          log('📄 Single PDF detected -> single sheet returned');
         } else {
           log('⚠️ Unknown content type, saving anyway...');
         }
