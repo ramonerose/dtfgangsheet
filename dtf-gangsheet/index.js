@@ -1,66 +1,82 @@
 import express from "express";
 import multer from "multer";
 import { PDFDocument, degrees } from "pdf-lib";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ✅ Serve static files (like test.html) from the "public" folder
-app.use(express.static("public"));
-
-// === CONSTANTS ===
+// constants
 const SHEET_WIDTH_INCH = 22;
-const SHEET_HEIGHT_INCH = 36;
+const MAX_SHEET_HEIGHT_INCH = 200;
 const SAFE_MARGIN_INCH = 0.125;
 const SPACING_INCH = 0.5;
 const POINTS_PER_INCH = 72;
 
-// ✅ Simple health check route
+// Serve the test.html page
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use(express.static(path.join(__dirname, "public")));
+
 app.get("/", (req, res) => {
-  res.send("✅ Gang Sheet PDF backend is running! Go to /test.html to use the UI.");
+  res.sendFile(path.join(__dirname, "public", "test.html"));
 });
 
-// ✅ PDF MERGE ENDPOINT
+// MERGE endpoint for generating gang sheets
 app.post("/merge", upload.single("file"), async (req, res) => {
   try {
-    const qty = parseInt(req.query.qty || "10");
-    const rotateAngle = parseInt(req.query.rotate || "0"); // 0 or 90
+    const qty = parseInt(req.body.qty || "10");
+    const rotateChoice = req.body.rotate || "no";
+    const rotateAngle = rotateChoice === "yes" ? 90 : 0;
 
     const uploadedPDF = req.file.buffer;
 
-    // ✅ Create a new gang sheet doc
     const gangDoc = await PDFDocument.create();
     const sheetWidthPts = SHEET_WIDTH_INCH * POINTS_PER_INCH;
-    const sheetHeightPts = SHEET_HEIGHT_INCH * POINTS_PER_INCH;
-    const gangPage = gangDoc.addPage([sheetWidthPts, sheetHeightPts]);
+    const maxSheetHeightPts = MAX_SHEET_HEIGHT_INCH * POINTS_PER_INCH;
 
-    // ✅ Load uploaded PDF & embed
     const srcDoc = await PDFDocument.load(uploadedPDF);
     const [embeddedPage] = await gangDoc.embedPdf(await srcDoc.save());
 
     let originalWidth = embeddedPage.width;
     let originalHeight = embeddedPage.height;
 
-    // ✅ Handle rotated dimensions
+    // Handle rotated dimensions
     const isRotated = rotateAngle === 90 || rotateAngle === 270;
     const logoWidthPts = isRotated ? originalHeight : originalWidth;
     const logoHeightPts = isRotated ? originalWidth : originalHeight;
 
-    // ✅ Margins and spacing
     const marginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
     const spacingPts = SPACING_INCH * POINTS_PER_INCH;
 
-    // ✅ Usable space inside margins
     const usableWidth = sheetWidthPts - marginPts * 2;
-    const usableHeight = sheetHeightPts - marginPts * 2;
 
-    // ✅ How many logos fit per row/column
+    // Fit per row (width always fixed at 22 inches)
     const perRow = Math.floor((usableWidth + spacingPts) / (logoWidthPts + spacingPts));
-    const perCol = Math.floor((usableHeight + spacingPts) / (logoHeightPts + spacingPts));
 
-    console.log(`🧠 Can fit ${perRow} logos across × ${perCol} down`);
+    // Calculate how many rows are needed
+    const totalRows = Math.ceil(qty / perRow);
+
+    // Total height required
+    const neededHeight = totalRows * logoHeightPts + (totalRows - 1) * spacingPts + marginPts * 2;
+
+    // Cap height to MAX_SHEET_HEIGHT_INCH but also round up to nearest inch
+    const finalHeightInches = Math.min(
+      Math.ceil(neededHeight / POINTS_PER_INCH),
+      MAX_SHEET_HEIGHT_INCH
+    );
+
+    const sheetHeightPts = finalHeightInches * POINTS_PER_INCH;
+
+    // Create the gang sheet page
+    const gangPage = gangDoc.addPage([sheetWidthPts, sheetHeightPts]);
 
     let placed = 0;
+
+    const perCol = Math.floor(
+      (sheetHeightPts - marginPts * 2 + spacingPts) / (logoHeightPts + spacingPts)
+    );
 
     for (let row = 0; row < perCol && placed < qty; row++) {
       for (let col = 0; col < perRow && placed < qty; col++) {
@@ -88,13 +104,15 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       }
     }
 
-    console.log(`✅ Placed ${placed} logos`);
+    console.log(`✅ Placed ${placed} logos. Sheet size: 22x${finalHeightInches} inches`);
 
     const finalPDF = await gangDoc.save();
 
+    // ✅ SAFE BINARY RESPONSE FIX
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="gangsheet.pdf"`);
-    res.send(finalPDF);
+    res.setHeader("Content-Disposition", `inline; filename="gangsheet_22x${finalHeightInches}.pdf"`);
+    res.setHeader("Content-Length", finalPDF.length);
+    res.end(Buffer.from(finalPDF)); // prevent corruption on Railway
 
   } catch (err) {
     console.error("❌ MERGE ERROR:", err);
@@ -102,6 +120,6 @@ app.post("/merge", upload.single("file"), async (req, res) => {
   }
 });
 
-// ✅ Start server
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
