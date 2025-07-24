@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, degrees } from "pdf-lib";
 import archiver from "archiver";
 
 const app = express();
@@ -40,7 +40,12 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const uploadedPage = uploadedPdf.getPages()[0];
     let { width: logoWidth, height: logoHeight } = uploadedPage.getSize();
 
-    if (rotate) [logoWidth, logoHeight] = [logoHeight, logoWidth];
+    // If rotating, swap width & height for layout math
+    let layoutWidth = logoWidth;
+    let layoutHeight = logoHeight;
+    if (rotate) {
+      [layoutWidth, layoutHeight] = [logoHeight, logoWidth];
+    }
 
     const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
     const spacingPts = SPACING_INCH * POINTS_PER_INCH;
@@ -48,8 +53,8 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const sheetWidthPts = SHEET_WIDTH_INCH * POINTS_PER_INCH;
     const maxHeightPts = MAX_SHEET_HEIGHT_INCH * POINTS_PER_INCH;
 
-    const logoTotalWidth = logoWidth + spacingPts;
-    const logoTotalHeight = logoHeight + spacingPts;
+    const logoTotalWidth = layoutWidth + spacingPts;
+    const logoTotalHeight = layoutHeight + spacingPts;
 
     // logos per row
     const logosPerRow = Math.floor(
@@ -71,6 +76,21 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
+    // Helper function to draw a logo in correct orientation
+    const drawLogo = (page, embeddedPage, x, y) => {
+      if (rotate) {
+        // ✅ Rotate 90° clockwise and adjust x offset so it fits grid properly
+        page.drawPage(embeddedPage, {
+          x: x + logoHeight, // shift right by original height
+          y,
+          rotate: degrees(90)
+        });
+      } else {
+        // ✅ Normal draw
+        page.drawPage(embeddedPage, { x, y });
+      }
+    };
+
     // ✅ SINGLE-SHEET MODE
     if (totalSheetsNeeded === 1) {
       const pdfDoc = await PDFDocument.create();
@@ -86,13 +106,13 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       // Create final page at correct height BEFORE drawing
       const page = pdfDoc.addPage([sheetWidthPts, roundedHeightPts]);
 
-      let yCursor = roundedHeightPts - safeMarginPts - logoHeight;
+      let yCursor = roundedHeightPts - safeMarginPts - layoutHeight;
       let placed = 0;
 
       while (placed < quantity) {
         let xCursor = safeMarginPts;
         for (let c = 0; c < logosPerRow && placed < quantity; c++) {
-          page.drawPage(embeddedPage, { x: xCursor, y: yCursor });
+          drawLogo(page, embeddedPage, xCursor, yCursor);
           placed++;
           xCursor += logoTotalWidth;
         }
@@ -138,13 +158,13 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       // Create this sheet page at correct height BEFORE drawing ✅
       const page = sheetDoc.addPage([sheetWidthPts, roundedHeightPts]);
 
-      let yCursor = roundedHeightPts - safeMarginPts - logoHeight;
+      let yCursor = roundedHeightPts - safeMarginPts - layoutHeight;
       let drawn = 0;
 
       while (drawn < logosOnThisSheet) {
         let xCursor = safeMarginPts;
         for (let c = 0; c < logosPerRow && drawn < logosOnThisSheet; c++) {
-          page.drawPage(embeddedPage, { x: xCursor, y: yCursor });
+          drawLogo(page, embeddedPage, xCursor, yCursor);
           drawn++;
           remaining--;
           xCursor += logoTotalWidth;
