@@ -5,6 +5,9 @@ import { PDFDocument, degrees } from "pdf-lib";
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
+// ✅ Keep serving the public folder so test.html works
+app.use(express.static("public"));
+
 const SHEET_WIDTH_INCH = 22;
 const MAX_SHEET_HEIGHT_INCH = 200;
 const SAFE_MARGIN_INCH = 0.125;
@@ -12,7 +15,7 @@ const SPACING_INCH = 0.5;
 const POINTS_PER_INCH = 72;
 
 app.get("/", (req, res) => {
-  res.send("✅ Test: generating multiple sheets but sending only the first one.");
+  res.send("✅ Test mode: generates multiple sheets but returns only the first one.");
 });
 
 app.post("/merge", upload.single("file"), async (req, res) => {
@@ -42,7 +45,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
     let remaining = qty;
 
-    // ✅ Generate ONLY the FIRST sheet
+    // ✅ Figure out rows needed for first sheet
     const maxPossibleRows = Math.floor(
       (maxSheetHeightPts - marginPts * 2 + spacingPts) / (logoHeightPts + spacingPts)
     );
