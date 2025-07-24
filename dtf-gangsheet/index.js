@@ -136,13 +136,13 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // ✅ drawLogo now separates PDF vs PNG behavior cleanly
+    // ✅ drawLogo separates PDF vs PNG behavior cleanly
     const drawLogo = (page, embeddedAsset, x, y) => {
       if (assetType === "pdf") {
-        // ✅ For PDFs, still rotate but NO weird x-offset
         if (rotate) {
+          // ✅ FIX: shift right by height when rotating PDF
           page.drawPage(embeddedAsset, {
-            x,
+            x: x + logoHeightPts,
             y,
             rotate: degrees(90)
           });
