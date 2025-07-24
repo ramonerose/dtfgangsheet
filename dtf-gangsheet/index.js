@@ -17,10 +17,10 @@ const POINTS_PER_INCH = 72;
 
 // Simple root route just to confirm it's running
 app.get("/", (req, res) => {
-  res.send("✅ Gang Sheet PDF backend with auto height expansion is running!");
+  res.send("✅ Gang Sheet PDF backend with full 200-inch packing is running!");
 });
 
-// ✅ PDF-only merge route with auto height & multi-sheet
+// ✅ PDF-only merge route with full-height packing
 app.post("/merge", upload.single("file"), async (req, res) => {
   try {
     const qty = parseInt(req.query.qty || "10");
@@ -55,30 +55,44 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     let placedTotal = 0;
 
     while (remaining > 0) {
-      // How many rows needed for remaining logos
-      const rowsNeeded = Math.ceil(remaining / perRow);
-
-      // Calculate required height for these rows
-      const requiredHeightPts =
-        marginPts * 2 + rowsNeeded * logoHeightPts + (rowsNeeded - 1) * spacingPts;
-
-      // Cap height to max allowed
-      const sheetHeightPts = Math.min(requiredHeightPts, maxSheetHeightPts);
-
-      const rowsPerSheet = Math.floor(
-        (sheetHeightPts - marginPts * 2 + spacingPts) / (logoHeightPts + spacingPts)
+      // --- HOW MANY ROWS CAN WE FIT IN 200 INCHES? ---
+      const maxPossibleRows = Math.floor(
+        (maxSheetHeightPts - marginPts * 2 + spacingPts) / (logoHeightPts + spacingPts)
       );
-      const maxPerSheet = rowsPerSheet * perRow;
 
-      console.log(`📄 This sheet can fit up to ${maxPerSheet} logos`);
+      // Logos that can fit in a full 22x200
+      const maxPerFullSheet = maxPossibleRows * perRow;
 
-      // Create a new sheet page
+      // If fewer logos remain than a full sheet can hold, we only need enough rows for remaining logos
+      const rowsNeededForRemaining = Math.ceil(remaining / perRow);
+
+      // Actual rows we’ll draw = smaller of (rows needed for remaining) vs (max rows allowed in 200 inches)
+      const rowsForThisSheet = Math.min(rowsNeededForRemaining, maxPossibleRows);
+
+      // Compute actual sheet height based on rowsForThisSheet
+      let requiredHeightPts =
+        marginPts * 2 +
+        rowsForThisSheet * logoHeightPts +
+        (rowsForThisSheet - 1) * spacingPts;
+
+      // ✅ CAP it at max height if somehow slightly over
+      if (requiredHeightPts > maxSheetHeightPts) {
+        requiredHeightPts = maxSheetHeightPts;
+      }
+
+      const sheetHeightPts = requiredHeightPts;
+
+      console.log(
+        `📏 This sheet will use ${rowsForThisSheet} rows → height ${(sheetHeightPts / POINTS_PER_INCH).toFixed(2)} inches`
+      );
+
+      // Create the new sheet
       const gangPage = gangDoc.addPage([sheetWidthPts, sheetHeightPts]);
 
       let placedOnThisSheet = 0;
 
-      // Fill this sheet
-      for (let row = 0; row < rowsPerSheet && remaining > 0; row++) {
+      // Fill the rows
+      for (let row = 0; row < rowsForThisSheet && remaining > 0; row++) {
         for (let col = 0; col < perRow && remaining > 0; col++) {
           const baseX = marginPts + col * (logoWidthPts + spacingPts);
           const baseY =
@@ -90,14 +104,14 @@ app.post("/merge", upload.single("file"), async (req, res) => {
               y: baseY,
               width: originalWidth,
               height: originalHeight,
-              rotate: degrees(90)
+              rotate: degrees(90),
             });
           } else {
             gangPage.drawPage(embeddedPage, {
               x: baseX,
               y: baseY,
               width: originalWidth,
-              height: originalHeight
+              height: originalHeight,
             });
           }
 
