@@ -2,7 +2,7 @@ import express from "express";
 import multer from "multer";
 import { PDFDocument, degrees } from "pdf-lib";
 import archiver from "archiver";
-import sharp from "sharp";  // ✅ NEW for true PNG rotation
+import sharp from "sharp"; // ✅ PNG true rotation
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -22,9 +22,9 @@ function log(msg) {
   console.log(`[DEBUG] ${msg}`);
 }
 
-// ✅ Helper to pre-rotate PNG using Sharp
+// ✅ Rotate PNGs BEFORE embedding
 async function maybeRotatePNG(buffer, rotateFlag) {
-  if (!rotateFlag) return buffer; // no rotation needed
+  if (!rotateFlag) return buffer;
   log("Rotating PNG 90° clockwise with Sharp...");
   const rotatedBuffer = await sharp(buffer).rotate(90).png().toBuffer();
   log("Rotation done.");
@@ -54,7 +54,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     let assetType = "pdf";
 
     if (isPDF) {
-      // ✅ PDFs work same as before
+      // ✅ PDFs rotate using pdf-lib
       assetType = "pdf";
       const uploadedPdf = await PDFDocument.load(uploadedFile.buffer);
       const uploadedPage = uploadedPdf.getPages()[0];
@@ -88,7 +88,13 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       const widthPts = widthInches * POINTS_PER_INCH;
       const heightPts = heightInches * POINTS_PER_INCH;
 
-      log(`PNG pixel size: ${pngWidthPx}x${pngHeightPx} => ${widthInches.toFixed(2)}x${heightInches.toFixed(2)} inches => ${widthPts.toFixed(2)}x${heightPts.toFixed(2)} pts`);
+      log(
+        `PNG pixel size: ${pngWidthPx}x${pngHeightPx} => ${widthInches.toFixed(
+          2
+        )}x${heightInches.toFixed(2)} inches => ${widthPts.toFixed(
+          2
+        )}x${heightPts.toFixed(2)} pts`
+      );
 
       // ✅ After Sharp rotation, width/height are already correct
       logoWidthPts = widthPts;
@@ -113,23 +119,30 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const logoTotalWidth = logoWidthPts + spacingPts;
     const logoTotalHeight = logoHeightPts + spacingPts;
 
-    const logosPerRow = Math.floor((sheetWidthPts - safeMarginPts * 2 + spacingPts) / logoTotalWidth);
+    const logosPerRow = Math.floor(
+      (sheetWidthPts - safeMarginPts * 2 + spacingPts) / logoTotalWidth
+    );
     if (logosPerRow < 1) throw new Error("Logo too wide for sheet");
     log(`Can fit ${logosPerRow} per row`);
 
-    const rowsPerSheet = Math.floor((maxHeightPts - safeMarginPts * 2 + spacingPts) / logoTotalHeight);
+    const rowsPerSheet = Math.floor(
+      (maxHeightPts - safeMarginPts * 2 + spacingPts) / logoTotalHeight
+    );
     const logosPerSheet = logosPerRow * rowsPerSheet;
 
-    log(`Each sheet max ${rowsPerSheet} rows -> ${logosPerSheet} logos max per sheet`);
+    log(
+      `Each sheet max ${rowsPerSheet} rows -> ${logosPerSheet} logos max per sheet`
+    );
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // ✅ drawLogo now simplified – no weird math for PNG since it's pre-rotated
+    // ✅ drawLogo now separates PDF vs PNG behavior cleanly
     const drawLogo = (page, embeddedAsset, x, y) => {
       if (assetType === "pdf") {
+        // ✅ For PDFs, still rotate but NO weird x-offset
         if (rotate) {
           page.drawPage(embeddedAsset, {
-            x: x + logoHeightPts, // shift RIGHT for rotated PDF
+            x,
             y,
             rotate: degrees(90)
           });
@@ -137,7 +150,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
           page.drawPage(embeddedAsset, { x, y });
         }
       } else {
-        // ✅ PNG is already rotated if needed, just draw normally
+        // ✅ PNG is already rotated via Sharp, so just draw normally
         page.drawImage(embeddedAsset, {
           x,
           y,
@@ -153,8 +166,10 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       const embeddedAsset = await embedFunc(pdfDoc);
 
       const usedRows = Math.ceil(quantity / logosPerRow);
-      const usedHeightPts = usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
-      const roundedHeightPts = Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
+      const usedHeightPts =
+        usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
+      const roundedHeightPts =
+        Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
 
       const page = pdfDoc.addPage([sheetWidthPts, roundedHeightPts]);
       let yCursor = roundedHeightPts - safeMarginPts - logoHeightPts;
@@ -175,14 +190,20 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
       const filename = `gangsheet_${SHEET_WIDTH_INCH}x${finalHeightInch}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${filename}"`
+      );
       return res.send(Buffer.from(pdfBytes));
     }
 
     // ✅ MULTI-SHEET MODE
     log(`Multi-sheet mode triggered with ${totalSheetsNeeded} sheets`);
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename="gangsheets.zip"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="gangsheets.zip"`
+    );
     const archive = archiver("zip");
     archive.pipe(res);
 
@@ -196,8 +217,10 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
       const logosOnThisSheet = Math.min(remaining, logosPerSheet);
       const usedRows = Math.ceil(logosOnThisSheet / logosPerRow);
-      const usedHeightPts = usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
-      const roundedHeightPts = Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
+      const usedHeightPts =
+        usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
+      const roundedHeightPts =
+        Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
 
       const page = sheetDoc.addPage([sheetWidthPts, roundedHeightPts]);
       let yCursor = roundedHeightPts - safeMarginPts - logoHeightPts;
