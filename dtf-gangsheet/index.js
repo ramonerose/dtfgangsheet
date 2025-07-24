@@ -1,9 +1,18 @@
 import express from "express";
 import multer from "multer";
 import { PDFDocument, degrees } from "pdf-lib";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
+
+// ✅ Get current directory (needed for ES modules)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ✅ Serve static files like test.html directly
+app.use(express.static(__dirname));
 
 // ✅ Constants
 const SHEET_WIDTH_INCH = 22;           // Always fixed width
@@ -14,7 +23,7 @@ const POINTS_PER_INCH = 72;            // 1 inch = 72 PDF points
 
 // ✅ Health check route
 app.get("/", (req, res) => {
-  res.send("✅ Gang Sheet PDF backend with multi-sheet support is running!");
+  res.send("✅ Gang Sheet PDF backend with multi-sheet support is running! Try /test.html");
 });
 
 // ✅ Main PDF merge route
@@ -120,8 +129,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       generatedSheets.push({ filename, pdfBytes });
     }
 
-    // ✅ Instead of merging → return *zip-style multi-response*
-    // For now, just return ONE sheet if only 1 needed
+    // ✅ If only 1 sheet → return it directly
     if (generatedSheets.length === 1) {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(
@@ -130,7 +138,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       );
       res.send(generatedSheets[0].pdfBytes);
     } else {
-      // TODO: Phase 2 → make multi-sheet download links instead of 1 file
+      // TODO: Phase 2 → multi-sheet links instead of 1 file
       res.status(501).send(
         `✅ ${generatedSheets.length} sheets generated but multi-download links coming in next step`
       );
