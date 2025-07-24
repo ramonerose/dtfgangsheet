@@ -10,17 +10,17 @@ app.use(express.static("public"));
 
 // constants for sheet size
 const SHEET_WIDTH_INCH = 22;
-const SHEET_HEIGHT_INCH = 36;
+const MAX_SHEET_HEIGHT_INCH = 200; // max sheet height
 const SAFE_MARGIN_INCH = 0.125;
 const SPACING_INCH = 0.5;
 const POINTS_PER_INCH = 72;
 
 // Simple root route just to confirm it's running
 app.get("/", (req, res) => {
-  res.send("✅ Gang Sheet PDF backend with clean 90° rotation is running!");
+  res.send("✅ Gang Sheet PDF backend with auto height expansion is running!");
 });
 
-// ✅ PDF-only merge route
+// ✅ PDF-only merge route with auto height & multi-sheet
 app.post("/merge", upload.single("file"), async (req, res) => {
   try {
     const qty = parseInt(req.query.qty || "10");
@@ -30,8 +30,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
     const gangDoc = await PDFDocument.create();
     const sheetWidthPts = SHEET_WIDTH_INCH * POINTS_PER_INCH;
-    const sheetHeightPts = SHEET_HEIGHT_INCH * POINTS_PER_INCH;
-    const gangPage = gangDoc.addPage([sheetWidthPts, sheetHeightPts]);
+    const maxSheetHeightPts = MAX_SHEET_HEIGHT_INCH * POINTS_PER_INCH;
 
     const srcDoc = await PDFDocument.load(uploadedPDF);
     const [embeddedPage] = await gangDoc.embedPdf(await srcDoc.save());
@@ -48,42 +47,70 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const spacingPts = SPACING_INCH * POINTS_PER_INCH;
 
     const usableWidth = sheetWidthPts - marginPts * 2;
-    const usableHeight = sheetHeightPts - marginPts * 2;
-
     const perRow = Math.floor((usableWidth + spacingPts) / (logoWidthPts + spacingPts));
-    const perCol = Math.floor((usableHeight + spacingPts) / (logoHeightPts + spacingPts));
 
-    console.log(`🧠 Can fit ${perRow} logos across × ${perCol} down`);
+    console.log(`🧠 Can fit ${perRow} logos across per row`);
 
-    let placed = 0;
+    let remaining = qty;
+    let placedTotal = 0;
 
-    for (let row = 0; row < perCol && placed < qty; row++) {
-      for (let col = 0; col < perRow && placed < qty; col++) {
-        const baseX = marginPts + col * (logoWidthPts + spacingPts);
-        const baseY = sheetHeightPts - marginPts - (row + 1) * logoHeightPts - row * spacingPts;
+    while (remaining > 0) {
+      // How many rows needed for remaining logos
+      const rowsNeeded = Math.ceil(remaining / perRow);
 
-        if (rotateAngle === 90) {
-          gangPage.drawPage(embeddedPage, {
-            x: baseX + logoWidthPts, // shift right by width
-            y: baseY,
-            width: originalWidth,
-            height: originalHeight,
-            rotate: degrees(90)
-          });
-        } else {
-          gangPage.drawPage(embeddedPage, {
-            x: baseX,
-            y: baseY,
-            width: originalWidth,
-            height: originalHeight
-          });
+      // Calculate required height for these rows
+      const requiredHeightPts =
+        marginPts * 2 + rowsNeeded * logoHeightPts + (rowsNeeded - 1) * spacingPts;
+
+      // Cap height to max allowed
+      const sheetHeightPts = Math.min(requiredHeightPts, maxSheetHeightPts);
+
+      const rowsPerSheet = Math.floor(
+        (sheetHeightPts - marginPts * 2 + spacingPts) / (logoHeightPts + spacingPts)
+      );
+      const maxPerSheet = rowsPerSheet * perRow;
+
+      console.log(`📄 This sheet can fit up to ${maxPerSheet} logos`);
+
+      // Create a new sheet page
+      const gangPage = gangDoc.addPage([sheetWidthPts, sheetHeightPts]);
+
+      let placedOnThisSheet = 0;
+
+      // Fill this sheet
+      for (let row = 0; row < rowsPerSheet && remaining > 0; row++) {
+        for (let col = 0; col < perRow && remaining > 0; col++) {
+          const baseX = marginPts + col * (logoWidthPts + spacingPts);
+          const baseY =
+            sheetHeightPts - marginPts - (row + 1) * logoHeightPts - row * spacingPts;
+
+          if (rotateAngle === 90) {
+            gangPage.drawPage(embeddedPage, {
+              x: baseX + logoWidthPts,
+              y: baseY,
+              width: originalWidth,
+              height: originalHeight,
+              rotate: degrees(90)
+            });
+          } else {
+            gangPage.drawPage(embeddedPage, {
+              x: baseX,
+              y: baseY,
+              width: originalWidth,
+              height: originalHeight
+            });
+          }
+
+          remaining--;
+          placedTotal++;
+          placedOnThisSheet++;
         }
-
-        placed++;
       }
+
+      console.log(`✅ Placed ${placedOnThisSheet} logos on this sheet`);
     }
 
-    console.log(`✅ Placed ${placed} logos`);
+    console.log(`✅ Placed total of ${placedTotal} logos across all sheets`);
 
     const finalPDF = await gangDoc.save();
 
