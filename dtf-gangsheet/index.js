@@ -104,7 +104,17 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       remaining -= logosThisSheet;
     }
 
-    // For now, still merge all sheets into ONE combined PDF
+    // ✅ If only ONE sheet → send directly (avoids corruption)
+    if (allSheets.length === 1) {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="gangsheet_${SHEET_WIDTH_INCH}x${allSheets[0].height}.pdf"`
+      );
+      return res.send(allSheets[0].bytes);
+    }
+
+    // ✅ If MULTIPLE sheets → merge into one
     const combinedDoc = await PDFDocument.create();
     for (const sheet of allSheets) {
       const tempDoc = await PDFDocument.load(sheet.bytes);
