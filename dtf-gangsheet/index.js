@@ -14,7 +14,7 @@ const SPACING_INCH = 0.5;
 const POINTS_PER_INCH = 72;
 
 app.get("/", (req, res) => {
-  res.send("✅ Gang Sheet PDF backend with rounded heights & file naming is running!");
+  res.send("✅ Gang Sheet PDF backend with per-sheet rounding is running!");
 });
 
 app.post("/merge", upload.single("file"), async (req, res) => {
@@ -49,7 +49,7 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     let remaining = qty;
     let placedTotal = 0;
 
-    // Track the tallest sheet generated for file naming
+    // Track tallest sheet for overall filename
     let tallestSheetInches = 0;
 
     while (remaining > 0) {
@@ -60,35 +60,38 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       const rowsNeededForRemaining = Math.ceil(remaining / perRow);
       const rowsForThisSheet = Math.min(rowsNeededForRemaining, maxPossibleRows);
 
-      // Calculate actual used height
+      // Raw required height
       let requiredHeightPts =
         marginPts * 2 +
         rowsForThisSheet * logoHeightPts +
         (rowsForThisSheet - 1) * spacingPts;
 
-      if (requiredHeightPts > maxSheetHeightPts) {
-        requiredHeightPts = maxSheetHeightPts;
-      }
-
-      // ✅ Convert points → inches
+      // Convert to inches
       const usedHeightInches = requiredHeightPts / POINTS_PER_INCH;
 
-      // ✅ Round UP to next whole inch
-      const roundedHeightInches = Math.ceil(usedHeightInches);
+      // ✅ Round UP to next full inch for this sheet
+      let roundedHeightInches = Math.ceil(usedHeightInches);
 
-      // ✅ Convert back to points for the actual sheet
+      // Cap at 200 if needed
+      if (roundedHeightInches > MAX_SHEET_HEIGHT_INCH) {
+        roundedHeightInches = MAX_SHEET_HEIGHT_INCH;
+      }
+
+      // Convert back to points
       const sheetHeightPts = roundedHeightInches * POINTS_PER_INCH;
 
-      // Keep track of tallest sheet (for file naming)
+      // Track largest height for final filename
       if (roundedHeightInches > tallestSheetInches) {
         tallestSheetInches = roundedHeightInches;
       }
 
       console.log(
-        `📏 This sheet will use ${rowsForThisSheet} rows → raw ${(usedHeightInches).toFixed(2)}" → rounded to ${roundedHeightInches}"`
+        `📏 This sheet → raw ${usedHeightInches.toFixed(2)}" → rounded to ${roundedHeightInches}"`
       );
 
+      // Create this sheet page
       const gangPage = gangDoc.addPage([sheetWidthPts, sheetHeightPts]);
+
       let placedOnThisSheet = 0;
 
       for (let row = 0; row < rowsForThisSheet && remaining > 0; row++) {
@@ -120,14 +123,14 @@ app.post("/merge", upload.single("file"), async (req, res) => {
         }
       }
 
-      console.log(`✅ Placed ${placedOnThisSheet} logos on this sheet`);
+      console.log(`✅ Placed ${placedOnThisSheet} logos on this rounded sheet`);
     }
 
     console.log(`✅ Placed total of ${placedTotal} logos across all sheets`);
 
     const finalPDF = await gangDoc.save();
 
-    // ✅ Name the file with the rounded height
+    // ✅ Name the file using the TALLEST sheet height among all sheets
     const filename = `gangsheet_${SHEET_WIDTH_INCH}x${tallestSheetInches}.pdf`;
 
     res.setHeader("Content-Type", "application/pdf");
