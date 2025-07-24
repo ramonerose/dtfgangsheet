@@ -5,7 +5,7 @@ import { PDFDocument, degrees } from "pdf-lib";
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ✅ Keep serving the public folder so test.html works
+// ✅ Keep serving UI files
 app.use(express.static("public"));
 
 const SHEET_WIDTH_INCH = 22;
@@ -15,7 +15,7 @@ const SPACING_INCH = 0.5;
 const POINTS_PER_INCH = 72;
 
 app.get("/", (req, res) => {
-  res.send("✅ Test mode: generates multiple sheets but returns only the first one.");
+  res.send("✅ Test mode: generates 1 sheet and returns it.");
 });
 
 app.post("/merge", upload.single("file"), async (req, res) => {
@@ -25,11 +25,15 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
     const uploadedPDF = req.file.buffer;
 
+    // ✅ Create a blank doc to host the sheet
+    const gangDoc = await PDFDocument.create();
     const srcDoc = await PDFDocument.load(uploadedPDF);
-    const [embeddedPage] = await srcDoc.embedPages([srcDoc.getPage(0)]);
 
-    const originalWidth = embeddedPage.width;
-    const originalHeight = embeddedPage.height;
+    // ✅ Embed properly like before (copy the first page)
+    const [embeddedPage] = await gangDoc.embedPdf(await srcDoc.save());
+
+    let originalWidth = embeddedPage.width;
+    let originalHeight = embeddedPage.height;
 
     const isRotated = rotateAngle === 90 || rotateAngle === 270;
     const logoWidthPts = isRotated ? originalHeight : originalWidth;
@@ -43,14 +47,12 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     const usableWidth = sheetWidthPts - marginPts * 2;
     const perRow = Math.floor((usableWidth + spacingPts) / (logoWidthPts + spacingPts));
 
-    let remaining = qty;
-
-    // ✅ Figure out rows needed for first sheet
+    // ✅ Calculate how many rows needed for just ONE sheet
     const maxPossibleRows = Math.floor(
       (maxSheetHeightPts - marginPts * 2 + spacingPts) / (logoHeightPts + spacingPts)
     );
 
-    const rowsNeededForRemaining = Math.ceil(remaining / perRow);
+    const rowsNeededForRemaining = Math.ceil(qty / perRow);
     const rowsForThisSheet = Math.min(rowsNeededForRemaining, maxPossibleRows);
 
     let requiredHeightPts =
@@ -65,11 +67,11 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     }
     const sheetHeightPts = roundedHeightInches * POINTS_PER_INCH;
 
-    console.log(`📏 First sheet: ${rawInches.toFixed(2)}" → rounded ${roundedHeightInches}"`);
+    console.log(`📏 Sheet: ${rawInches.toFixed(2)}" → rounded ${roundedHeightInches}"`);
 
-    const gangDoc = await PDFDocument.create();
     const gangPage = gangDoc.addPage([sheetWidthPts, sheetHeightPts]);
 
+    let remaining = qty;
     let placed = 0;
     for (let row = 0; row < rowsForThisSheet && remaining > 0; row++) {
       for (let col = 0; col < perRow && remaining > 0; col++) {
@@ -90,13 +92,12 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       }
     }
 
-    console.log(`✅ Placed ${placed} logos on this test sheet`);
+    console.log(`✅ Placed ${placed} logos on this sheet`);
 
-    // ✅ Save ONLY this first sheet
     const firstSheetBuffer = await gangDoc.save();
     const filename = `gangsheet_${SHEET_WIDTH_INCH}x${roundedHeightInches}.pdf`;
 
-    // ✅ Send as raw binary (no corruption)
+    // ✅ Return as correct binary response
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
     res.setHeader("Content-Length", firstSheetBuffer.length);
