@@ -4,86 +4,99 @@
   <meta charset="UTF-8">
   <title>Upload PDF for Gang Sheet</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .sheet-list { margin-top: 15px; }
-    .sheet-item { margin-bottom: 8px; }
-    .total-cost { font-weight: bold; margin-top: 10px; }
-    .download-all { display: inline-block; margin-top: 10px; padding: 8px 12px; background: #007bff; color: #fff; text-decoration: none; border-radius: 5px; }
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .sheet-item { margin: 5px 0; }
+    .cost { color: green; font-weight: bold; }
   </style>
 </head>
 <body>
   <h1>Upload PDF for Gang Sheet</h1>
 
   <form id="uploadForm">
-    <label>Select PDF file: </label>
-    <input type="file" name="file" required>
-    <br><br>
-    <label>Quantity:</label>
-    <input type="number" name="quantity" required>
-    <br><br>
-    <label>Rotate 90°?</label>
-    <select name="rotate">
-      <option value="false">No</option>
-      <option value="true">Yes</option>
-    </select>
-    <br><br>
+    <label>Select PDF file: <input type="file" id="file" required /></label><br><br>
+    <label>Quantity: <input type="number" id="quantity" min="1" required /></label><br><br>
+
+    <label>Rotate 90°?
+      <select id="rotate">
+        <option value="false">No</option>
+        <option value="true">Yes</option>
+      </select>
+    </label><br><br>
+
+    <!-- ✅ NEW: Gang Sheet Width -->
+    <label>Gang Sheet Width:
+      <select id="gangWidth">
+        <option value="22" selected>22 inches</option>
+        <option value="30">30 inches</option>
+      </select>
+    </label><br><br>
+
+    <!-- ✅ NEW: Max Sheet Length -->
+    <label>Max Sheet Length (inches):
+      <input type="number" id="maxLength" min="12" value="200" />
+    </label><br><br>
+
     <button type="submit">Generate Gang Sheet</button>
   </form>
 
-  <div id="status" style="margin-top:15px;"></div>
-  <div id="sheetList" class="sheet-list"></div>
-  <div id="totalCost" class="total-cost"></div>
-  <div id="downloadAllContainer"></div>
+  <hr>
+
+  <div id="log"></div>
 
   <script>
-    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+    const form = document.getElementById("uploadForm");
+    const logDiv = document.getElementById("log");
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const formData = new FormData(e.target);
-      document.getElementById("status").textContent = "⏳ Uploading...";
 
-      const res = await fetch("/merge", { method: "POST", body: formData });
-      const statusDiv = document.getElementById("status");
-      const sheetListDiv = document.getElementById("sheetList");
-      const totalCostDiv = document.getElementById("totalCost");
-      const downloadAllDiv = document.getElementById("downloadAllContainer");
+      logDiv.innerHTML = "⏳ Uploading...";
 
-      sheetListDiv.innerHTML = "";
-      totalCostDiv.innerHTML = "";
-      downloadAllDiv.innerHTML = "";
+      const file = document.getElementById("file").files[0];
+      const quantity = document.getElementById("quantity").value;
+      const rotate = document.getElementById("rotate").value;
+      const gangWidth = document.getElementById("gangWidth").value;
+      const maxLength = document.getElementById("maxLength").value;
 
-      if (!res.ok) {
-        statusDiv.textContent = "❌ Failed to generate gang sheets.";
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("quantity", quantity);
+      formData.append("rotate", rotate);
+      formData.append("gangWidth", gangWidth);
+      formData.append("maxLength", maxLength);
+
+      const response = await fetch("/merge", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        logDiv.innerHTML = "❌ Server error!";
         return;
       }
 
-      const data = await res.json();
-      statusDiv.textContent = `✅ ${data.sheets.length} sheets generated!`;
+      const data = await response.json();
 
-      let totalCost = 0;
-      data.sheets.forEach((sheet) => {
-        const link = document.createElement("a");
-        link.href = `data:application/pdf;base64,${sheet.buffer}`;
-        link.download = sheet.name;
-        link.textContent = "⬇ Download";
-
-        const item = document.createElement("div");
-        item.classList.add("sheet-item");
-        item.innerHTML = `📄 ${sheet.name} → 💰 $${sheet.cost.toFixed(2)} `;
-        item.appendChild(link);
-
-        sheetListDiv.appendChild(item);
-        totalCost += sheet.cost;
+      let html = `<p>✅ ${data.sheets.length} sheets generated!</p><br><strong>Sheets:</strong><ul>`;
+      data.sheets.forEach((s, idx) => {
+        html += `<li class="sheet-item">📄 ${s.filename} → <span class="cost">💰 $${s.cost.toFixed(2)}</span> 
+        <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}">⬇️ Download</a></li>`;
       });
+      html += `</ul><strong>Total Cost: $${data.totalCost.toFixed(2)}</strong><br><br>`;
 
-      totalCostDiv.textContent = `Total Cost: $${totalCost.toFixed(2)}`;
+      // ✅ Download all as zip
+      html += `<button id="downloadAll">⬇️ Download All</button>`;
+      logDiv.innerHTML = html;
 
-      if (data.sheets.length > 1) {
-        const zipLink = document.createElement("a");
-        zipLink.href = "/download-all";
-        zipLink.classList.add("download-all");
-        zipLink.textContent = "⬇ Download All Sheets (ZIP)";
-        downloadAllDiv.appendChild(zipLink);
-      }
+      // When clicking "Download All", zip all PDFs
+      document.getElementById("downloadAll").addEventListener("click", () => {
+        data.sheets.forEach(s => {
+          const a = document.createElement("a");
+          a.href = `data:application/pdf;base64,${s.pdfBase64}`;
+          a.download = s.filename;
+          a.click();
+        });
+      });
     });
   </script>
 </body>
