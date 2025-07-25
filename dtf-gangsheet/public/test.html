@@ -1,139 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
   <title>Upload PDF for Gang Sheet</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 2rem;
-      background: #f8f8f8;
-    }
-    h1 {
-      font-size: 1.5rem;
-    }
-    label {
-      display: block;
-      margin-top: 1rem;
-    }
-    input, select, button {
-      margin-top: 0.5rem;
-      padding: 0.5rem;
-      font-size: 1rem;
-    }
-    #log {
-      margin-top: 1.5rem;
-      padding: 1rem;
-      background: #fff;
-      border: 1px solid #ccc;
-      white-space: pre-wrap;
-      font-family: monospace;
-      max-height: 300px;
-      overflow-y: auto;
-    }
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .log { margin-top: 15px; padding: 10px; border: 1px solid #ccc; }
+    .result { margin-top: 15px; padding: 10px; background: #f7f7f7; border: 1px solid #ccc; }
   </style>
 </head>
 <body>
   <h1>Upload PDF for Gang Sheet</h1>
 
   <form id="uploadForm">
-    <label>
-      Select PDF file:
-      <input type="file" id="file" name="file" accept="application/pdf" required />
-    </label>
+    <label>Select PDF file:</label>
+    <input type="file" name="file" required><br><br>
 
-    <label>
-      Quantity:
-      <input type="number" id="quantity" name="quantity" min="1" required />
-    </label>
+    <label>Quantity:</label>
+    <input type="number" name="quantity" required><br><br>
 
-    <label>
-      Rotate 90°?
-      <select id="rotate" name="rotate">
-        <option value="false">No</option>
-        <option value="true">Yes</option>
-      </select>
-    </label>
+    <label>Rotate 90°?</label>
+    <select name="rotate">
+      <option value="false">No</option>
+      <option value="true">Yes</option>
+    </select><br><br>
 
     <button type="submit">Generate Gang Sheet</button>
   </form>
 
-  <div id="log"></div>
+  <div class="log" id="log"></div>
+  <div class="result" id="result"></div>
 
   <script>
     const form = document.getElementById("uploadForm");
-    const logEl = document.getElementById("log");
+    const logDiv = document.getElementById("log");
+    const resultDiv = document.getElementById("result");
 
-    function log(msg) {
-      const timestamp = new Date().toLocaleTimeString();
-      logEl.textContent += `[${timestamp}] ${msg}\n`;
-      logEl.scrollTop = logEl.scrollHeight;
+    function log(message) {
+      logDiv.innerHTML += `<div>${message}</div>`;
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      logDiv.innerHTML = "";
+      resultDiv.innerHTML = "";
 
-      const fileInput = document.getElementById("file");
-      const quantityInput = document.getElementById("quantity");
-      const rotateSelect = document.getElementById("rotate");
+      const formData = new FormData(form);
+      log("⏳ Uploading...");
 
-      const file = fileInput.files[0];
-      const quantity = quantityInput.value;
-      const rotate = rotateSelect.value;
+      const response = await fetch("/merge", { method: "POST", body: formData });
+      const data = await response.json();
 
-      if (!file) {
-        alert("Please select a PDF file");
-        return;
-      }
+      if (data.type === "single") {
+        log("✅ Single sheet generated!");
+        const blob = b64toBlob(data.pdf, "application/pdf");
+        const url = URL.createObjectURL(blob);
 
-      log("📂 Preparing upload of: " + file.name + " (" + file.type + ")");
-      log("➡️ Quantity: " + quantity + ", Rotate: " + rotate);
+        resultDiv.innerHTML = `
+          <p><strong>Sheet Size:</strong> 22x${data.sheetHeight} inches</p>
+          <p><strong>Cost:</strong> $${data.cost.toFixed(2)}</p>
+          <a href="${url}" download="${data.filename}">⬇️ Download PDF</a>
+        `;
+      } else if (data.type === "multi") {
+        log(`✅ ${data.sheets.length} sheets generated!`);
 
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("quantity", quantity);
-      formData.append("rotate", rotate);
+        let html = "<h3>Sheets:</h3>";
+        data.sheets.forEach((s, idx) => {
+          const sheetData = data.zipSheets[idx];
+          const blob = b64toBlob(sheetData.pdf, "application/pdf");
+          const url = URL.createObjectURL(blob);
 
-      try {
-        log("⏳ Sending to server...");
-        const response = await fetch("/merge", {
-          method: "POST",
-          body: formData
+          html += `
+            <div>
+              📏 22x${s.height} → 💰 $${s.cost.toFixed(2)}
+              <a href="${url}" download="${sheetData.filename}">⬇️ Download</a>
+            </div>
+          `;
         });
-
-        log("✅ Server responded (" + response.status + ")");
-        const disposition = response.headers.get("Content-Disposition") || "";
-        const contentType = response.headers.get("Content-Type") || "";
-        log("🔍 Content-Type: " + contentType);
-        log("🔍 Content-Disposition: " + disposition);
-
-        if (!response.ok) {
-          const errText = await response.text();
-          log("❌ Server error: " + errText);
-          return;
-        }
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-
-        // Extract filename from headers or fallback
-        let filename = "gangsheet.pdf";
-        const match = disposition.match(/filename="(.+)"/);
-        if (match) filename = match[1];
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-
-        log("✅ Downloaded: " + filename);
-      } catch (err) {
-        log("❌ Fetch error: " + err.message);
+        html += `<p><strong>Total Cost:</strong> $${data.totalCost.toFixed(2)}</p>`;
+        resultDiv.innerHTML = html;
+      } else {
+        log("❌ Unexpected response");
       }
     });
+
+    function b64toBlob(b64Data, contentType = '', sliceSize = 512) {
+      const byteCharacters = atob(b64Data);
+      const byteArrays = [];
+      for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+        const slice = byteCharacters.slice(offset, offset + sliceSize);
+        const byteNumbers = new Array(slice.length);
+        for (let i = 0; i < slice.length; i++) {
+          byteNumbers[i] = slice.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+      }
+      return new Blob(byteArrays, { type: contentType });
+    }
   </script>
 </body>
 </html>
