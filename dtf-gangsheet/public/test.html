@@ -4,100 +4,87 @@
   <meta charset="UTF-8">
   <title>Upload PDF for Gang Sheet</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    .log { margin-top: 15px; padding: 10px; border: 1px solid #ccc; }
-    .result { margin-top: 15px; padding: 10px; background: #f7f7f7; border: 1px solid #ccc; }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .sheet-list { margin-top: 15px; }
+    .sheet-item { margin-bottom: 8px; }
+    .total-cost { font-weight: bold; margin-top: 10px; }
+    .download-all { display: inline-block; margin-top: 10px; padding: 8px 12px; background: #007bff; color: #fff; text-decoration: none; border-radius: 5px; }
   </style>
 </head>
 <body>
   <h1>Upload PDF for Gang Sheet</h1>
 
   <form id="uploadForm">
-    <label>Select PDF file:</label>
-    <input type="file" name="file" required><br><br>
-
+    <label>Select PDF file: </label>
+    <input type="file" name="file" required>
+    <br><br>
     <label>Quantity:</label>
-    <input type="number" name="quantity" required><br><br>
-
+    <input type="number" name="quantity" required>
+    <br><br>
     <label>Rotate 90°?</label>
     <select name="rotate">
       <option value="false">No</option>
       <option value="true">Yes</option>
-    </select><br><br>
-
+    </select>
+    <br><br>
     <button type="submit">Generate Gang Sheet</button>
   </form>
 
-  <div class="log" id="log"></div>
-  <div class="result" id="result"></div>
+  <div id="status" style="margin-top:15px;"></div>
+  <div id="sheetList" class="sheet-list"></div>
+  <div id="totalCost" class="total-cost"></div>
+  <div id="downloadAllContainer"></div>
 
   <script>
-    const form = document.getElementById("uploadForm");
-    const logDiv = document.getElementById("log");
-    const resultDiv = document.getElementById("result");
-
-    function log(message) {
-      logDiv.innerHTML += `<div>${message}</div>`;
-    }
-
-    form.addEventListener("submit", async (e) => {
+    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-      logDiv.innerHTML = "";
-      resultDiv.innerHTML = "";
+      const formData = new FormData(e.target);
+      document.getElementById("status").textContent = "⏳ Uploading...";
 
-      const formData = new FormData(form);
-      log("⏳ Uploading...");
+      const res = await fetch("/merge", { method: "POST", body: formData });
+      const statusDiv = document.getElementById("status");
+      const sheetListDiv = document.getElementById("sheetList");
+      const totalCostDiv = document.getElementById("totalCost");
+      const downloadAllDiv = document.getElementById("downloadAllContainer");
 
-      const response = await fetch("/merge", { method: "POST", body: formData });
-      const data = await response.json();
+      sheetListDiv.innerHTML = "";
+      totalCostDiv.innerHTML = "";
+      downloadAllDiv.innerHTML = "";
 
-      if (data.type === "single") {
-        log("✅ Single sheet generated!");
-        const blob = b64toBlob(data.pdf, "application/pdf");
-        const url = URL.createObjectURL(blob);
+      if (!res.ok) {
+        statusDiv.textContent = "❌ Failed to generate gang sheets.";
+        return;
+      }
 
-        resultDiv.innerHTML = `
-          <p><strong>Sheet Size:</strong> 22x${data.sheetHeight} inches</p>
-          <p><strong>Cost:</strong> $${data.cost.toFixed(2)}</p>
-          <a href="${url}" download="${data.filename}">⬇️ Download PDF</a>
-        `;
-      } else if (data.type === "multi") {
-        log(`✅ ${data.sheets.length} sheets generated!`);
+      const data = await res.json();
+      statusDiv.textContent = `✅ ${data.sheets.length} sheets generated!`;
 
-        let html = "<h3>Sheets:</h3>";
-        data.sheets.forEach((s, idx) => {
-          const sheetData = data.zipSheets[idx];
-          const blob = b64toBlob(sheetData.pdf, "application/pdf");
-          const url = URL.createObjectURL(blob);
+      let totalCost = 0;
+      data.sheets.forEach((sheet) => {
+        const link = document.createElement("a");
+        link.href = `data:application/pdf;base64,${sheet.buffer}`;
+        link.download = sheet.name;
+        link.textContent = "⬇ Download";
 
-          html += `
-            <div>
-              📏 22x${s.height} → 💰 $${s.cost.toFixed(2)}
-              <a href="${url}" download="${sheetData.filename}">⬇️ Download</a>
-            </div>
-          `;
-        });
-        html += `<p><strong>Total Cost:</strong> $${data.totalCost.toFixed(2)}</p>`;
-        resultDiv.innerHTML = html;
-      } else {
-        log("❌ Unexpected response");
+        const item = document.createElement("div");
+        item.classList.add("sheet-item");
+        item.innerHTML = `📄 ${sheet.name} → 💰 $${sheet.cost.toFixed(2)} `;
+        item.appendChild(link);
+
+        sheetListDiv.appendChild(item);
+        totalCost += sheet.cost;
+      });
+
+      totalCostDiv.textContent = `Total Cost: $${totalCost.toFixed(2)}`;
+
+      if (data.sheets.length > 1) {
+        const zipLink = document.createElement("a");
+        zipLink.href = "/download-all";
+        zipLink.classList.add("download-all");
+        zipLink.textContent = "⬇ Download All Sheets (ZIP)";
+        downloadAllDiv.appendChild(zipLink);
       }
     });
-
-    function b64toBlob(b64Data, contentType = '', sliceSize = 512) {
-      const byteCharacters = atob(b64Data);
-      const byteArrays = [];
-      for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
-        const slice = byteCharacters.slice(offset, offset + sliceSize);
-        const byteNumbers = new Array(slice.length);
-        for (let i = 0; i < slice.length; i++) {
-          byteNumbers[i] = slice.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        byteArrays.push(byteArray);
-      }
-      return new Blob(byteArrays, { type: contentType });
-    }
   </script>
 </body>
 </html>
