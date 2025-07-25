@@ -2,49 +2,58 @@ import express from "express";
 import multer from "multer";
 import { PDFDocument, degrees } from "pdf-lib";
 import archiver from "archiver";
+import path from "path";
+import fs from "fs";
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
+
 const PORT = process.env.PORT || 8080;
 
-// ✅ Sheet & spacing constants
+// Constants
 const SHEET_WIDTH_INCH = 22;
 const MAX_SHEET_HEIGHT_INCH = 200;
 const POINTS_PER_INCH = 72;
 const SAFE_MARGIN_INCH = 0.125;
 const SPACING_INCH = 0.5;
 
-// ✅ Cost lookup table
-const costTable = {
-  12: 5.28,
-  24: 10.56,
-  36: 15.84,
-  48: 21.12,
-  60: 26.40,
-  80: 35.20,
-  100: 44.00,
-  120: 49.28,
-  140: 56.32,
-  160: 61.60,
-  180: 68.64,
-  200: 75.68,
-};
-
-// ✅ Find the nearest height tier (round up)
-function getSheetCost(heightInches) {
-  const tiers = Object.keys(costTable).map(Number).sort((a, b) => a - b);
-  for (let tier of tiers) {
-    if (heightInches <= tier) {
-      return { tier, cost: costTable[tier] };
-    }
-  }
-  return { tier: 200, cost: costTable[200] }; // default max
-}
+// Temporary storage for generated PDFs (in-memory for now)
+let lastGeneratedSheets = [];
 
 app.use(express.static("public"));
+app.use(express.json());
 
 function log(msg) {
   console.log(`[DEBUG] ${msg}`);
+}
+
+// Predefined costs for each sheet size
+const sheetCosts = {
+  "22x12": 5.28,
+  "22x24": 10.56,
+  "22x36": 15.84,
+  "22x48": 21.12,
+  "22x60": 26.40,
+  "22x80": 35.20,
+  "22x100": 44.00,
+  "22x120": 49.28,
+  "22x140": 56.32,
+  "22x160": 61.60,
+  "22x180": 68.64,
+  "22x200": 75.68,
+};
+
+function findClosestCostLabel(heightInch) {
+  const availableHeights = Object.keys(sheetCosts).map((k) => parseInt(k.split("x")[1]));
+  let closest = availableHeights[0];
+
+  for (let h of availableHeights) {
+    if (heightInch <= h) {
+      closest = h;
+      break;
+    }
+  }
+  return `22x${closest}`;
 }
 
 app.post("/merge", upload.single("file"), async (req, res) => {
@@ -61,19 +70,16 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     log(`Requested quantity: ${quantity}, rotate: ${rotate}`);
     log(`Uploaded PDF size: ${uploadedFile.size} bytes`);
 
-    // ✅ Load uploaded PDF
     const uploadedPdf = await PDFDocument.load(uploadedFile.buffer);
     const uploadedPage = uploadedPdf.getPages()[0];
     let { width: logoWidth, height: logoHeight } = uploadedPage.getSize();
 
-    // ✅ Swap width/height if rotating
     let layoutWidth = logoWidth;
     let layoutHeight = logoHeight;
     if (rotate) [layoutWidth, layoutHeight] = [logoHeight, logoWidth];
 
     const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
     const spacingPts = SPACING_INCH * POINTS_PER_INCH;
-
     const sheetWidthPts = SHEET_WIDTH_INCH * POINTS_PER_INCH;
     const maxHeightPts = MAX_SHEET_HEIGHT_INCH * POINTS_PER_INCH;
 
@@ -90,70 +96,16 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       (maxHeightPts - safeMarginPts * 2 + spacingPts) / logoTotalHeight
     );
     const logosPerSheet = logosPerRow * rowsPerSheet;
-    log(`Each sheet max ${rowsPerSheet} rows → ${logosPerSheet} logos`);
+
+    log(
+      `Each sheet max ${rowsPerSheet} rows → ${logosPerSheet} logos max per sheet`
+    );
 
     const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
     log(`Total sheets needed: ${totalSheetsNeeded}`);
 
-    // ✅ Helper to draw logo w/ rotation
-    const drawLogo = (page, embeddedPage, x, y) => {
-      if (rotate) {
-        page.drawPage(embeddedPage, {
-          x: x + logoHeight,
-          y,
-          rotate: degrees(90),
-        });
-      } else {
-        page.drawPage(embeddedPage, { x, y });
-      }
-    };
-
-    // ✅ Single-sheet mode
-    if (totalSheetsNeeded === 1) {
-      const pdfDoc = await PDFDocument.create();
-      const [embeddedPage] = await pdfDoc.embedPdf(uploadedFile.buffer);
-
-      const usedRows = Math.ceil(quantity / logosPerRow);
-      const usedHeightPts =
-        usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
-      const roundedHeightPts =
-        Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
-      const roundedHeightInches = Math.ceil(roundedHeightPts / POINTS_PER_INCH);
-
-      const page = pdfDoc.addPage([sheetWidthPts, roundedHeightPts]);
-
-      let yCursor = roundedHeightPts - safeMarginPts - layoutHeight;
-      let placed = 0;
-
-      while (placed < quantity) {
-        let xCursor = safeMarginPts;
-        for (let c = 0; c < logosPerRow && placed < quantity; c++) {
-          drawLogo(page, embeddedPage, xCursor, yCursor);
-          placed++;
-          xCursor += logoTotalWidth;
-        }
-        yCursor -= logoTotalHeight;
-      }
-
-      const pdfBytes = await pdfDoc.save();
-      const { cost } = getSheetCost(roundedHeightInches);
-
-      res.setHeader("Content-Type", "application/json");
-      return res.json({
-        type: "single",
-        filename: `gangsheet_${SHEET_WIDTH_INCH}x${roundedHeightInches}.pdf`,
-        pdf: Buffer.from(pdfBytes).toString("base64"),
-        sheetHeight: roundedHeightInches,
-        cost,
-        totalCost: cost,
-      });
-    }
-
-    // ✅ Multi-sheet mode
-    log(`Multi-sheet mode triggered`);
+    const generatedSheets = [];
     let remaining = quantity;
-    const sheetSummaries = [];
-    const zipBuffers = [];
 
     for (let sheetIndex = 0; sheetIndex < totalSheetsNeeded; sheetIndex++) {
       const sheetDoc = await PDFDocument.create();
@@ -165,7 +117,6 @@ app.post("/merge", upload.single("file"), async (req, res) => {
         usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
       const roundedHeightPts =
         Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
-      const roundedHeightInches = Math.ceil(roundedHeightPts / POINTS_PER_INCH);
 
       const page = sheetDoc.addPage([sheetWidthPts, roundedHeightPts]);
 
@@ -175,7 +126,15 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       while (drawn < logosOnThisSheet) {
         let xCursor = safeMarginPts;
         for (let c = 0; c < logosPerRow && drawn < logosOnThisSheet; c++) {
-          drawLogo(page, embeddedPage, xCursor, yCursor);
+          if (rotate) {
+            page.drawPage(embeddedPage, {
+              x: xCursor + logoHeight,
+              y: yCursor,
+              rotate: degrees(90),
+            });
+          } else {
+            page.drawPage(embeddedPage, { x: xCursor, y: yCursor });
+          }
           drawn++;
           remaining--;
           xCursor += logoTotalWidth;
@@ -184,35 +143,51 @@ app.post("/merge", upload.single("file"), async (req, res) => {
       }
 
       const pdfBytes = await sheetDoc.save();
-      const buffer = Buffer.from(pdfBytes);
-      zipBuffers.push({
-        filename: `gangsheet_${SHEET_WIDTH_INCH}x${roundedHeightInches}.pdf`,
-        buffer,
-      });
+      const pdfBuffer = Buffer.from(pdfBytes);
 
-      const { cost } = getSheetCost(roundedHeightInches);
-      sheetSummaries.push({
-        height: roundedHeightInches,
+      const finalHeightInch = Math.ceil(roundedHeightPts / POINTS_PER_INCH);
+      const label = findClosestCostLabel(finalHeightInch);
+      const cost = sheetCosts[label] ?? 0;
+      const filename = `gangsheet_${SHEET_WIDTH_INCH}x${finalHeightInch}.pdf`;
+
+      generatedSheets.push({
+        name: filename,
         cost,
+        buffer: pdfBuffer.toString("base64"), // store as base64 for frontend
       });
     }
 
-    const totalCost = sheetSummaries.reduce((sum, s) => sum + s.cost, 0);
+    lastGeneratedSheets = generatedSheets;
 
-    // ✅ Instead of sending ZIP, just send metadata + base64 sheets (frontend can download)
-    res.json({
-      type: "multi",
-      sheets: sheetSummaries,
-      totalCost,
-      zipSheets: zipBuffers.map((z) => ({
-        filename: z.filename,
-        pdf: z.buffer.toString("base64"),
-      })),
-    });
+    const totalCost = generatedSheets.reduce((sum, s) => sum + s.cost, 0);
+
+    res.json({ sheets: generatedSheets, totalCost });
   } catch (err) {
     console.error("MERGE ERROR:", err);
     res.status(500).send(`Server error: ${err.message}`);
   }
+});
+
+// ✅ NEW ENDPOINT: Download All Sheets as ZIP
+app.get("/download-all", async (req, res) => {
+  if (!lastGeneratedSheets.length) {
+    return res.status(400).send("No sheets generated yet");
+  }
+
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="all_sheets.zip"`
+  );
+
+  const archive = archiver("zip");
+  archive.pipe(res);
+
+  lastGeneratedSheets.forEach((sheet) => {
+    archive.append(Buffer.from(sheet.buffer, "base64"), { name: sheet.name });
+  });
+
+  archive.finalize();
 });
 
 app.listen(PORT, () => {
