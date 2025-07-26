@@ -8,37 +8,32 @@
 <body class="bg-gray-100 text-gray-800">
 
   <div class="max-w-2xl mx-auto p-6">
-
     <!-- ✅ Logo -->
     <img src="EZGangSheetsLogo.png" alt="EZGangSheets Logo" class="mx-auto mb-6 w-64">
 
-    <!-- ✅ Form Card -->
+    <!-- ✅ Form -->
     <div class="bg-white shadow-md rounded-lg p-6">
       <form id="uploadForm" class="space-y-4">
 
-        <!-- ✅ Drag-and-Drop Zone with Cloud Icon -->
-        <div id="dropZone"
-          class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
-          <div class="flex flex-col items-center justify-center space-y-2">
-            <!-- Cloud Upload Icon -->
+        <!-- ✅ Drag and Drop Zone -->
+        <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
+          <div class="flex flex-col items-center space-y-2">
             <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M7 16a4 4 0 01.88-7.9A5 5 0 1119 11h1a3 3 0 010 6h-3m-4-4v6m0 0l-2-2m2 2l2-2"/>
+                d="M7 16a4 4 0 01.88-7.9A5 5 0 1119 11h1a3 3 0 010 6h-3m-4-4v6m0 0l-2-2m2 2l2-2" />
             </svg>
-            <p class="text-gray-500" id="dropZoneText">
-              <strong>Drag & drop your PDF(s) here</strong><br>or click to browse
-            </p>
+            <p class="text-gray-500"><strong>Drag & drop your PDF(s) here</strong><br>or click to browse</p>
           </div>
-          <input type="file" id="file" class="hidden" accept="application/pdf" multiple />
+          <input type="file" id="file" name="files" class="hidden" accept="application/pdf" multiple />
         </div>
 
-        <!-- ✅ Selected Files Preview Section -->
+        <!-- ✅ File Previews -->
         <div id="filePreviewList" class="mt-4 space-y-4 hidden"></div>
 
-        <!-- ✅ Quantity -->
+        <!-- ✅ Global Quantity -->
         <div>
-          <label class="block font-medium mb-1">Quantity</label>
-          <input type="number" id="quantity" min="1" required 
+          <label class="block font-medium mb-1">Quantity per design</label>
+          <input type="number" id="quantity" min="1" required
             class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
@@ -51,7 +46,7 @@
           </select>
         </div>
 
-        <!-- ✅ Width -->
+        <!-- ✅ Sheet Width -->
         <div>
           <label class="block font-medium mb-1">Gang Sheet Width</label>
           <select id="gangWidth" class="block w-full border border-gray-300 rounded-lg p-2">
@@ -63,68 +58,58 @@
         <!-- ✅ Max Length -->
         <div>
           <label class="block font-medium mb-1">Max Sheet Length (inches)</label>
-          <input type="number" id="maxLength" min="12" value="200" 
+          <input type="number" id="maxLength" min="12" value="200"
             class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
-        <button id="generateBtn" type="submit" 
+        <button id="generateBtn" type="submit"
           class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">
           Generate Gang Sheet
         </button>
       </form>
     </div>
 
-    <!-- ✅ Results Section -->
+    <!-- ✅ Output Section -->
     <div id="log" class="mt-6"></div>
-
   </div>
 
-  <!-- ✅ PDF.js for Thumbnails -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
 
   <script>
     const dropZone = document.getElementById("dropZone");
     const fileInput = document.getElementById("file");
     const filePreviewList = document.getElementById("filePreviewList");
+    const form = document.getElementById("uploadForm");
+    const logDiv = document.getElementById("log");
+    const generateBtn = document.getElementById("generateBtn");
 
-    let selectedFiles = []; // Queue of files
+    let selectedFiles = [];
 
-    // ✅ Click drop zone to browse
     dropZone.addEventListener("click", () => fileInput.click());
-
-    // ✅ File selection
-    fileInput.addEventListener("change", () => handleNewFiles(fileInput.files));
-
-    // ✅ Drag over highlight
     dropZone.addEventListener("dragover", (e) => {
       e.preventDefault();
       dropZone.classList.add("border-blue-500", "bg-blue-50");
     });
-
     dropZone.addEventListener("dragleave", () => {
       dropZone.classList.remove("border-blue-500", "bg-blue-50");
     });
-
-    // ✅ Drop files
     dropZone.addEventListener("drop", (e) => {
       e.preventDefault();
       dropZone.classList.remove("border-blue-500", "bg-blue-50");
       handleNewFiles(e.dataTransfer.files);
     });
 
-    // ✅ Handle adding new files
+    fileInput.addEventListener("change", () => handleNewFiles(fileInput.files));
+
     function handleNewFiles(files) {
       for (let file of files) {
         if (file.name.toLowerCase().endsWith(".pdf")) {
           selectedFiles.push(file);
-        } else {
-          alert("Only PDF files are supported.");
         }
       }
       renderFileList();
     }
 
-    // ✅ Render the file queue
     function renderFileList() {
       filePreviewList.innerHTML = "";
       if (selectedFiles.length === 0) {
@@ -166,14 +151,12 @@
         header.appendChild(fileName);
         header.appendChild(actions);
 
-        // Thumbnail
         const thumbWrapper = document.createElement("div");
         thumbWrapper.className = "flex justify-center";
 
         const canvas = document.createElement("canvas");
         canvas.className = "border rounded-md shadow-sm cursor-pointer hover:opacity-80 transition";
         canvas.addEventListener("click", () => {
-          // Open PDF in new tab
           const pdfURL = URL.createObjectURL(file);
           window.open(pdfURL, "_blank");
         });
@@ -188,7 +171,6 @@
       });
     }
 
-    // ✅ Trigger replace for one file
     function triggerReplaceFile(index) {
       const tempInput = document.createElement("input");
       tempInput.type = "file";
@@ -197,7 +179,7 @@
       document.body.appendChild(tempInput);
 
       tempInput.addEventListener("change", () => {
-        if (tempInput.files.length > 0 && tempInput.files[0].name.toLowerCase().endsWith(".pdf")) {
+        if (tempInput.files.length > 0) {
           selectedFiles[index] = tempInput.files[0];
           renderFileList();
         }
@@ -207,10 +189,9 @@
       tempInput.click();
     }
 
-    // ✅ Render PDF thumbnail using PDF.js
     function renderPdfThumbnail(file, canvas) {
       const reader = new FileReader();
-      reader.onload = async function(e) {
+      reader.onload = async function (e) {
         const typedarray = new Uint8Array(e.target.result);
         const pdf = await pdfjsLib.getDocument(typedarray).promise;
         const page = await pdf.getPage(1);
@@ -223,18 +204,25 @@
       reader.readAsArrayBuffer(file);
     }
 
-    // ✅ Form submission
-    const form = document.getElementById("uploadForm");
-    const logDiv = document.getElementById("log");
-    const generateBtn = document.getElementById("generateBtn");
-
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       if (selectedFiles.length === 0) {
-        alert("Please select at least one PDF file.");
+        alert("Please upload at least one PDF.");
         return;
       }
+
+      const quantity = document.getElementById("quantity").value;
+      const rotate = document.getElementById("rotate").value;
+      const gangWidth = document.getElementById("gangWidth").value;
+      const maxLength = document.getElementById("maxLength").value;
+
+      const formData = new FormData();
+      selectedFiles.forEach(file => formData.append("files", file));
+      formData.append("quantity", quantity);
+      formData.append("rotate", rotate);
+      formData.append("gangWidth", gangWidth);
+      formData.append("maxLength", maxLength);
 
       generateBtn.disabled = true;
       generateBtn.classList.add("opacity-70", "cursor-not-allowed");
@@ -246,22 +234,6 @@
           <p class="font-semibold text-sm text-gray-600">Generating your gang sheets...</p>
         </div>
       `;
-
-      // NOTE: Right now the backend only expects 1 file.
-      // For multiple file queue, we'd loop & send one at a time OR modify backend.
-      // For now, just send the FIRST file in the queue:
-      const file = selectedFiles[0];
-      const quantity = document.getElementById("quantity").value;
-      const rotate = document.getElementById("rotate").value;
-      const gangWidth = document.getElementById("gangWidth").value;
-      const maxLength = document.getElementById("maxLength").value;
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("quantity", quantity);
-      formData.append("rotate", rotate);
-      formData.append("gangWidth", gangWidth);
-      formData.append("maxLength", maxLength);
 
       const response = await fetch("/merge", {
         method: "POST",
@@ -277,22 +249,17 @@
       }
 
       const data = await response.json();
-
       let html = `
-        <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
+        <div class="flex items-center justify-center gap-2 mb-4">
           <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
           <p class="text-green-700 font-semibold">Sheets ready!</p>
         </div>
-
-        <div class="bg-white shadow-md rounded-lg p-4 animate-fadeIn">
-          <h3 class="text-lg font-bold mb-3">
-            ✅ ${data.sheets.length} sheet(s) generated
-          </h3>
+        <div class="bg-white shadow-md rounded-lg p-4">
+          <h3 class="text-lg font-bold mb-3">✅ ${data.sheets.length} sheet(s) generated</h3>
           <ul class="space-y-2">
       `;
-
       data.sheets.forEach((s) => {
         html += `
           <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
@@ -301,31 +268,26 @@
               <span class="text-green-600 font-semibold ml-2">💰 $${s.cost.toFixed(2)}</span>
             </div>
             <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
-               ⬇️ Download
+              ⬇️ Download
             </a>
           </li>
         `;
       });
-
-      html += `</ul>
-        <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
-          <span class="block text-sm text-gray-600">Summary</span>
-          <span class="text-xl font-bold text-green-700">
-            Total Cost: $${data.totalCost.toFixed(2)}
-          </span>
-        </div>
-        <button id="downloadAll" 
-          class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
-          ⬇️ Download All
-        </button>
+      html += `
+          </ul>
+          <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
+            <span class="block text-sm text-gray-600">Summary</span>
+            <span class="text-xl font-bold text-green-700">
+              Total Cost: $${data.totalCost.toFixed(2)}
+            </span>
+          </div>
+          <button id="downloadAll"
+            class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+            ⬇️ Download All
+          </button>
         </div>
       `;
-
       logDiv.innerHTML = html;
-
-      generateBtn.disabled = false;
-      generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
-      generateBtn.textContent = "Generate Gang Sheet";
 
       document.getElementById("downloadAll").addEventListener("click", () => {
         data.sheets.forEach((s) => {
@@ -335,18 +297,11 @@
           a.click();
         });
       });
+
+      generateBtn.disabled = false;
+      generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
+      generateBtn.textContent = "Generate Gang Sheet";
     });
   </script>
-
-  <style>
-    .animate-fadeIn {
-      animation: fadeIn 0.4s ease-in-out;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
-
 </body>
 </html>
