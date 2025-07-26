@@ -52,7 +52,7 @@
             class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
-        <button type="submit" 
+        <button id="generateBtn" type="submit" 
           class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">
           Generate Gang Sheet
         </button>
@@ -67,14 +67,19 @@
   <script>
     const form = document.getElementById("uploadForm");
     const logDiv = document.getElementById("log");
+    const generateBtn = document.getElementById("generateBtn");
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
+      // ✅ Disable button + change text
+      generateBtn.disabled = true;
+      generateBtn.classList.add("opacity-70", "cursor-not-allowed");
+      generateBtn.textContent = "Working...";
+
       // ✅ Show spinner while generating
       logDiv.innerHTML = `
         <div class="flex flex-col items-center justify-center text-gray-700">
-          <!-- Spinner -->
           <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-3"></div>
           <p class="font-semibold text-sm text-gray-600">Generating your gang sheets...</p>
         </div>
@@ -104,13 +109,25 @@
             ❌ Server error! Please try again.
           </div>
         `;
+        generateBtn.disabled = false;
+        generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
+        generateBtn.textContent = "Generate Gang Sheet";
         return;
       }
 
       const data = await response.json();
 
       let html = `
-        <div class="bg-white shadow-md rounded-lg p-4">
+        <!-- ✅ Success Message -->
+        <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
+          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M5 13l4 4L19 7" />
+          </svg>
+          <p class="text-green-700 font-semibold">Sheets ready!</p>
+        </div>
+
+        <div class="bg-white shadow-md rounded-lg p-4 animate-fadeIn">
           <h3 class="text-lg font-bold mb-3">
             ✅ ${data.sheets.length} sheet(s) generated
           </h3>
@@ -136,9 +153,13 @@
       });
 
       html += `</ul>
-        <p class="mt-4 text-lg font-bold">
-          Total Cost: $${data.totalCost.toFixed(2)}
-        </p>
+        <!-- ✅ Highlighted Total Cost -->
+        <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
+          <span class="block text-sm text-gray-600">Summary</span>
+          <span class="text-xl font-bold text-green-700">
+            Total Cost: $${data.totalCost.toFixed(2)}
+          </span>
+        </div>
         <button id="downloadAll" 
           class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
           ⬇️ Download All
@@ -147,6 +168,11 @@
       `;
 
       logDiv.innerHTML = html;
+
+      // ✅ Re-enable button for next job
+      generateBtn.disabled = false;
+      generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
+      generateBtn.textContent = "Generate Gang Sheet";
 
       // ✅ Download all PDFs at once
       document.getElementById("downloadAll").addEventListener("click", () => {
@@ -159,6 +185,17 @@
       });
     });
   </script>
+
+  <!-- ✅ Simple Tailwind fade-in animation -->
+  <style>
+    .animate-fadeIn {
+      animation: fadeIn 0.4s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
 
 </body>
 </html>
