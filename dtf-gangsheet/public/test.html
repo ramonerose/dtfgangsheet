@@ -26,17 +26,14 @@
                 d="M7 16a4 4 0 01.88-7.9A5 5 0 1119 11h1a3 3 0 010 6h-3m-4-4v6m0 0l-2-2m2 2l2-2"/>
             </svg>
             <p class="text-gray-500" id="dropZoneText">
-              <strong>Drag & drop your PDF here</strong><br>or click to browse
+              <strong>Drag & drop your PDF(s) here</strong><br>or click to browse
             </p>
           </div>
-          <input type="file" id="file" class="hidden" accept="application/pdf" required />
+          <input type="file" id="file" class="hidden" accept="application/pdf" multiple />
         </div>
 
-        <!-- ✅ Selected File + Thumbnail Preview -->
-        <div id="filePreview" class="mt-4 hidden">
-          <p id="fileName" class="text-green-700 font-medium mb-2"></p>
-          <canvas id="pdfThumbnail" class="border rounded-md shadow-sm"></canvas>
-        </div>
+        <!-- ✅ Selected Files Preview Section -->
+        <div id="filePreviewList" class="mt-4 space-y-4 hidden"></div>
 
         <!-- ✅ Quantity -->
         <div>
@@ -82,82 +79,151 @@
 
   </div>
 
-  <!-- ✅ PDF.js (for thumbnail rendering) -->
+  <!-- ✅ PDF.js for Thumbnails -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
 
   <script>
     const dropZone = document.getElementById("dropZone");
-    const dropZoneText = document.getElementById("dropZoneText");
     const fileInput = document.getElementById("file");
-    const filePreview = document.getElementById("filePreview");
-    const fileNameDisplay = document.getElementById("fileName");
-    const pdfThumbnailCanvas = document.getElementById("pdfThumbnail");
+    const filePreviewList = document.getElementById("filePreviewList");
 
-    // ✅ Clicking drop zone triggers file picker
+    let selectedFiles = []; // Queue of files
+
+    // ✅ Click drop zone to browse
     dropZone.addEventListener("click", () => fileInput.click());
 
-    // ✅ When file selected manually
-    fileInput.addEventListener("change", () => handleFile(fileInput.files));
+    // ✅ File selection
+    fileInput.addEventListener("change", () => handleNewFiles(fileInput.files));
 
-    // ✅ Drag over highlights the zone
+    // ✅ Drag over highlight
     dropZone.addEventListener("dragover", (e) => {
       e.preventDefault();
       dropZone.classList.add("border-blue-500", "bg-blue-50");
     });
 
-    // ✅ Drag leave removes highlight
     dropZone.addEventListener("dragleave", () => {
       dropZone.classList.remove("border-blue-500", "bg-blue-50");
     });
 
-    // ✅ Dropping file assigns it
+    // ✅ Drop files
     dropZone.addEventListener("drop", (e) => {
       e.preventDefault();
       dropZone.classList.remove("border-blue-500", "bg-blue-50");
-
-      if (e.dataTransfer.files.length > 0) {
-        fileInput.files = e.dataTransfer.files; // Assign file
-        handleFile(e.dataTransfer.files);
-      }
+      handleNewFiles(e.dataTransfer.files);
     });
 
-    // ✅ Handle showing file name + thumbnail
-    function handleFile(files) {
-      if (!files || files.length === 0) return;
+    // ✅ Handle adding new files
+    function handleNewFiles(files) {
+      for (let file of files) {
+        if (file.name.toLowerCase().endsWith(".pdf")) {
+          selectedFiles.push(file);
+        } else {
+          alert("Only PDF files are supported.");
+        }
+      }
+      renderFileList();
+    }
 
-      const file = files[0];
-      if (!file.name.toLowerCase().endsWith(".pdf")) {
-        alert("Please select a PDF file.");
+    // ✅ Render the file queue
+    function renderFileList() {
+      filePreviewList.innerHTML = "";
+      if (selectedFiles.length === 0) {
+        filePreviewList.classList.add("hidden");
         return;
       }
+      filePreviewList.classList.remove("hidden");
 
-      fileNameDisplay.textContent = `✅ Selected: ${file.name}`;
-      filePreview.classList.remove("hidden");
+      selectedFiles.forEach((file, index) => {
+        const container = document.createElement("div");
+        container.className = "bg-gray-50 border rounded-md p-4 shadow-sm";
 
-      // ✅ Show thumbnail of first page using PDF.js
+        const header = document.createElement("div");
+        header.className = "flex justify-between items-center mb-2";
+
+        const fileName = document.createElement("span");
+        fileName.className = "text-green-700 font-medium";
+        fileName.textContent = `✅ ${file.name}`;
+
+        const actions = document.createElement("div");
+        actions.className = "space-x-2 text-sm";
+
+        const replaceLink = document.createElement("button");
+        replaceLink.textContent = "Replace";
+        replaceLink.className = "text-blue-600 hover:underline";
+        replaceLink.addEventListener("click", () => triggerReplaceFile(index));
+
+        const removeLink = document.createElement("button");
+        removeLink.textContent = "❌ Remove";
+        removeLink.className = "text-red-500 hover:underline";
+        removeLink.addEventListener("click", () => {
+          selectedFiles.splice(index, 1);
+          renderFileList();
+        });
+
+        actions.appendChild(replaceLink);
+        actions.appendChild(removeLink);
+
+        header.appendChild(fileName);
+        header.appendChild(actions);
+
+        // Thumbnail
+        const thumbWrapper = document.createElement("div");
+        thumbWrapper.className = "flex justify-center";
+
+        const canvas = document.createElement("canvas");
+        canvas.className = "border rounded-md shadow-sm cursor-pointer hover:opacity-80 transition";
+        canvas.addEventListener("click", () => {
+          // Open PDF in new tab
+          const pdfURL = URL.createObjectURL(file);
+          window.open(pdfURL, "_blank");
+        });
+
+        thumbWrapper.appendChild(canvas);
+
+        container.appendChild(header);
+        container.appendChild(thumbWrapper);
+        filePreviewList.appendChild(container);
+
+        renderPdfThumbnail(file, canvas);
+      });
+    }
+
+    // ✅ Trigger replace for one file
+    function triggerReplaceFile(index) {
+      const tempInput = document.createElement("input");
+      tempInput.type = "file";
+      tempInput.accept = "application/pdf";
+      tempInput.style.display = "none";
+      document.body.appendChild(tempInput);
+
+      tempInput.addEventListener("change", () => {
+        if (tempInput.files.length > 0 && tempInput.files[0].name.toLowerCase().endsWith(".pdf")) {
+          selectedFiles[index] = tempInput.files[0];
+          renderFileList();
+        }
+        document.body.removeChild(tempInput);
+      });
+
+      tempInput.click();
+    }
+
+    // ✅ Render PDF thumbnail using PDF.js
+    function renderPdfThumbnail(file, canvas) {
       const reader = new FileReader();
       reader.onload = async function(e) {
         const typedarray = new Uint8Array(e.target.result);
-
         const pdf = await pdfjsLib.getDocument(typedarray).promise;
         const page = await pdf.getPage(1);
-
-        const viewport = page.getViewport({ scale: 0.3 }); // Small preview
-        const context = pdfThumbnailCanvas.getContext("2d");
-
-        pdfThumbnailCanvas.width = viewport.width;
-        pdfThumbnailCanvas.height = viewport.height;
-
-        const renderContext = {
-          canvasContext: context,
-          viewport: viewport,
-        };
-        await page.render(renderContext).promise;
+        const viewport = page.getViewport({ scale: 0.3 });
+        const context = canvas.getContext("2d");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: context, viewport }).promise;
       };
       reader.readAsArrayBuffer(file);
     }
 
-    // ✅ Existing form submission stays same
+    // ✅ Form submission
     const form = document.getElementById("uploadForm");
     const logDiv = document.getElementById("log");
     const generateBtn = document.getElementById("generateBtn");
@@ -165,8 +231,8 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      if (!fileInput.files.length) {
-        alert("Please select a PDF file.");
+      if (selectedFiles.length === 0) {
+        alert("Please select at least one PDF file.");
         return;
       }
 
@@ -181,7 +247,10 @@
         </div>
       `;
 
-      const file = fileInput.files[0];
+      // NOTE: Right now the backend only expects 1 file.
+      // For multiple file queue, we'd loop & send one at a time OR modify backend.
+      // For now, just send the FIRST file in the queue:
+      const file = selectedFiles[0];
       const quantity = document.getElementById("quantity").value;
       const rotate = document.getElementById("rotate").value;
       const gangWidth = document.getElementById("gangWidth").value;
