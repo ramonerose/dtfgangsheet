@@ -71,9 +71,12 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
+      // ✅ Show spinner while generating
       logDiv.innerHTML = `
-        <div class="text-center text-yellow-600 font-semibold">
-          ⏳ Generating sheets...
+        <div class="flex flex-col items-center justify-center text-gray-700">
+          <!-- Spinner -->
+          <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-3"></div>
+          <p class="font-semibold text-sm text-gray-600">Generating your gang sheets...</p>
         </div>
       `;
 
@@ -145,6 +148,7 @@
 
       logDiv.innerHTML = html;
 
+      // ✅ Download all PDFs at once
       document.getElementById("downloadAll").addEventListener("click", () => {
         data.sheets.forEach((s) => {
           const a = document.createElement("a");
