@@ -3,33 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <title>EZGangSheets</title>
-  <!-- ✅ Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 text-gray-800">
 
-  <!-- ✅ Page Container -->
   <div class="max-w-2xl mx-auto p-6">
 
-    <!-- ✅ Even Larger Logo -->
+    <!-- ✅ Logo -->
     <img src="EZGangSheetsLogo.png" alt="EZGangSheets Logo" class="mx-auto mb-6 w-64">
 
     <!-- ✅ Form Card -->
     <div class="bg-white shadow-md rounded-lg p-6">
       <form id="uploadForm" class="space-y-4">
 
-        <div>
-          <label class="block font-medium mb-1">Select PDF file</label>
-          <input type="file" id="file" required 
-            class="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg p-2" />
+        <!-- ✅ Drag-and-Drop Zone -->
+        <div id="dropZone"
+          class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
+          <p class="text-gray-500" id="dropZoneText">📂 Drag & drop your PDF here<br>or click to browse</p>
+          <input type="file" id="file" class="hidden" required />
         </div>
 
+        <!-- ✅ Quantity -->
         <div>
           <label class="block font-medium mb-1">Quantity</label>
           <input type="number" id="quantity" min="1" required 
             class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
+        <!-- ✅ Rotate? -->
         <div>
           <label class="block font-medium mb-1">Rotate 90°?</label>
           <select id="rotate" class="block w-full border border-gray-300 rounded-lg p-2">
@@ -38,6 +39,7 @@
           </select>
         </div>
 
+        <!-- ✅ Width -->
         <div>
           <label class="block font-medium mb-1">Gang Sheet Width</label>
           <select id="gangWidth" class="block w-full border border-gray-300 rounded-lg p-2">
@@ -46,6 +48,7 @@
           </select>
         </div>
 
+        <!-- ✅ Max Length -->
         <div>
           <label class="block font-medium mb-1">Max Sheet Length (inches)</label>
           <input type="number" id="maxLength" min="12" value="200" 
@@ -65,6 +68,45 @@
   </div>
 
   <script>
+    const dropZone = document.getElementById("dropZone");
+    const dropZoneText = document.getElementById("dropZoneText");
+    const fileInput = document.getElementById("file");
+
+    // ✅ Clicking drop zone triggers file picker
+    dropZone.addEventListener("click", () => fileInput.click());
+
+    // ✅ When a file is chosen manually
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files.length > 0) {
+        dropZoneText.textContent = `✅ Selected: ${fileInput.files[0].name}`;
+      } else {
+        dropZoneText.textContent = "📂 Drag & drop your PDF here\nor click to browse";
+      }
+    });
+
+    // ✅ Drag over highlights the zone
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("border-blue-500", "bg-blue-50");
+    });
+
+    // ✅ Drag leave removes highlight
+    dropZone.addEventListener("dragleave", () => {
+      dropZone.classList.remove("border-blue-500", "bg-blue-50");
+    });
+
+    // ✅ Dropping file assigns it
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("border-blue-500", "bg-blue-50");
+
+      if (e.dataTransfer.files.length > 0) {
+        fileInput.files = e.dataTransfer.files; // Assign file to hidden input
+        dropZoneText.textContent = `✅ Selected: ${e.dataTransfer.files[0].name}`;
+      }
+    });
+
+    // ✅ Form submission logic stays same
     const form = document.getElementById("uploadForm");
     const logDiv = document.getElementById("log");
     const generateBtn = document.getElementById("generateBtn");
@@ -72,12 +114,16 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      // ✅ Disable button + change text
+      // ✅ Check file
+      if (!fileInput.files.length) {
+        alert("Please select a PDF file.");
+        return;
+      }
+
       generateBtn.disabled = true;
       generateBtn.classList.add("opacity-70", "cursor-not-allowed");
       generateBtn.textContent = "Working...";
 
-      // ✅ Show spinner while generating
       logDiv.innerHTML = `
         <div class="flex flex-col items-center justify-center text-gray-700">
           <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-3"></div>
@@ -85,7 +131,7 @@
         </div>
       `;
 
-      const file = document.getElementById("file").files[0];
+      const file = fileInput.files[0];
       const quantity = document.getElementById("quantity").value;
       const rotate = document.getElementById("rotate").value;
       const gangWidth = document.getElementById("gangWidth").value;
@@ -104,11 +150,7 @@
       });
 
       if (!response.ok) {
-        logDiv.innerHTML = `
-          <div class="text-center text-red-600 font-semibold">
-            ❌ Server error! Please try again.
-          </div>
-        `;
+        logDiv.innerHTML = `<div class="text-center text-red-600 font-semibold">❌ Server error! Please try again.</div>`;
         generateBtn.disabled = false;
         generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
         generateBtn.textContent = "Generate Gang Sheet";
@@ -118,11 +160,9 @@
       const data = await response.json();
 
       let html = `
-        <!-- ✅ Success Message -->
         <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
           <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M5 13l4 4L19 7" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
           <p class="text-green-700 font-semibold">Sheets ready!</p>
         </div>
@@ -139,13 +179,9 @@
           <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
             <div>
               📄 <span class="font-medium">${s.filename}</span>
-              <span class="text-green-600 font-semibold ml-2">
-                💰 $${s.cost.toFixed(2)}
-              </span>
+              <span class="text-green-600 font-semibold ml-2">💰 $${s.cost.toFixed(2)}</span>
             </div>
-            <a href="data:application/pdf;base64,${s.pdfBase64}" 
-               download="${s.filename}" 
-               class="text-blue-600 hover:underline">
+            <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
                ⬇️ Download
             </a>
           </li>
@@ -153,7 +189,6 @@
       });
 
       html += `</ul>
-        <!-- ✅ Highlighted Total Cost -->
         <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
           <span class="block text-sm text-gray-600">Summary</span>
           <span class="text-xl font-bold text-green-700">
@@ -169,12 +204,10 @@
 
       logDiv.innerHTML = html;
 
-      // ✅ Re-enable button for next job
       generateBtn.disabled = false;
       generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
       generateBtn.textContent = "Generate Gang Sheet";
 
-      // ✅ Download all PDFs at once
       document.getElementById("downloadAll").addEventListener("click", () => {
         data.sheets.forEach((s) => {
           const a = document.createElement("a");
@@ -186,7 +219,6 @@
     });
   </script>
 
-  <!-- ✅ Simple Tailwind fade-in animation -->
   <style>
     .animate-fadeIn {
       animation: fadeIn 0.4s ease-in-out;
