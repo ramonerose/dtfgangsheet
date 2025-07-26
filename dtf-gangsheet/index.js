@@ -18,139 +18,132 @@ function log(msg) {
   console.log(`[DEBUG] ${msg}`);
 }
 
-// ✅ Cost table exactly as your screenshot
+// ✅ Cost table
 const COST_TABLE = {
-  12: 5.28,
-  24: 10.56,
-  36: 15.84,
-  48: 21.12,
-  60: 26.40,
-  80: 35.20,
-  100: 44.00,
-  120: 49.28,
-  140: 56.32,
-  160: 61.60,
-  180: 68.64,
-  200: 75.68
+  12: 5.28, 24: 10.56, 36: 15.84, 48: 21.12,
+  60: 26.40, 80: 35.20, 100: 44.00, 120: 49.28,
+  140: 56.32, 160: 61.60, 180: 68.64, 200: 75.68
 };
 
-// ✅ NEW FIXED LOGIC
+// ✅ Cost rounding logic
 function calculateCost(widthInches, heightInches) {
-  // Round UP to the next 12-inch increment
   const roundedHeight = Math.ceil(heightInches / 12) * 12;
+  if (COST_TABLE[roundedHeight]) return COST_TABLE[roundedHeight];
 
-  // If exact tier exists, return it
-  if (COST_TABLE[roundedHeight]) {
-    return COST_TABLE[roundedHeight];
-  }
-
-  // Otherwise find the NEXT available tier (round up to next in table)
-  const availableTiers = Object.keys(COST_TABLE).map(Number).sort((a, b) => a - b);
-  const nextTier = availableTiers.find(t => t >= roundedHeight) || Math.max(...availableTiers);
-
+  const tiers = Object.keys(COST_TABLE).map(Number).sort((a,b) => a-b);
+  const nextTier = tiers.find(t => t >= roundedHeight) || Math.max(...tiers);
   return COST_TABLE[nextTier];
 }
 
-app.post("/merge", upload.single("file"), async (req, res) => {
+app.post("/merge", upload.array("files"), async (req, res) => {
   try {
     log("/merge route hit!");
 
     const quantity = parseInt(req.body.quantity, 10);
     const rotate = req.body.rotate === "true";
-    const gangWidth = parseInt(req.body.gangWidth, 10); // 22 or 30
+    const gangWidth = parseInt(req.body.gangWidth, 10);
     const maxLengthInches = parseInt(req.body.maxLength, 10) || 200;
 
-    const uploadedFile = req.file;
-    if (!uploadedFile) throw new Error("No file uploaded");
+    const uploadedFiles = req.files;
+    if (!uploadedFiles || uploadedFiles.length === 0) throw new Error("No files uploaded");
     if (!quantity || quantity <= 0) throw new Error("Invalid quantity");
 
-    log(`Requested quantity: ${quantity}, rotate: ${rotate}`);
+    log(`Requested quantity per file: ${quantity}, rotate: ${rotate}`);
     log(`Selected gang width: ${gangWidth} inches`);
     log(`Max sheet length: ${maxLengthInches} inches`);
-    log(`Uploaded PDF size: ${uploadedFile.size} bytes`);
-
-    const uploadedPdf = await PDFDocument.load(uploadedFile.buffer);
-    const uploadedPage = uploadedPdf.getPages()[0];
-    let { width: logoWidth, height: logoHeight } = uploadedPage.getSize();
-
-    let layoutWidth = logoWidth;
-    let layoutHeight = logoHeight;
-    if (rotate) [layoutWidth, layoutHeight] = [logoHeight, logoWidth];
-
-    const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
-    const spacingPts = SPACING_INCH * POINTS_PER_INCH;
+    log(`Total uploaded PDFs: ${uploadedFiles.length}`);
 
     const sheetWidthPts = gangWidth * POINTS_PER_INCH;
     const maxHeightPts = maxLengthInches * POINTS_PER_INCH;
+    const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
+    const spacingPts = SPACING_INCH * POINTS_PER_INCH;
 
-    const logoTotalWidth = layoutWidth + spacingPts;
-    const logoTotalHeight = layoutHeight + spacingPts;
+    // ✅ Load all uploaded PDFs, store their pages as "designs"
+    const allDesigns = [];
+    for (const file of uploadedFiles) {
+      const pdfDoc = await PDFDocument.load(file.buffer);
+      const page = pdfDoc.getPages()[0];
+      let { width: designW, height: designH } = page.getSize();
 
-    const logosPerRow = Math.floor(
-      (sheetWidthPts - safeMarginPts * 2 + spacingPts) / logoTotalWidth
-    );
-    if (logosPerRow < 1) throw new Error("Logo too wide for sheet");
-    log(`Can fit ${logosPerRow} logos per row`);
+      if (rotate) [designW, designH] = [designH, designW];
 
-    const rowsPerSheet = Math.floor(
-      (maxHeightPts - safeMarginPts * 2 + spacingPts) / logoTotalHeight
-    );
-    const logosPerSheet = logosPerRow * rowsPerSheet;
+      allDesigns.push({
+        buffer: file.buffer,
+        width: designW,
+        height: designH,
+        filename: file.originalname
+      });
+    }
 
-    log(`Each sheet max ${rowsPerSheet} rows → ${logosPerSheet} logos per sheet`);
-
-    const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
-    log(`Total sheets needed: ${totalSheetsNeeded}`);
-
-    const drawLogo = (page, embeddedPage, x, y) => {
-      if (rotate) {
-        page.drawPage(embeddedPage, {
-          x: x + logoHeight,
-          y,
-          rotate: degrees(90)
-        });
-      } else {
-        page.drawPage(embeddedPage, { x, y });
+    // ✅ Build a "print list" with N copies of each design
+    let printQueue = [];
+    for (const design of allDesigns) {
+      for (let i = 0; i < quantity; i++) {
+        printQueue.push(design);
       }
-    };
+    }
+    log(`Total designs to place: ${printQueue.length}`);
 
+    // ✅ Now we’ll generate sheets
     let allSheetData = [];
-    let remaining = quantity;
+    let queueIndex = 0;
 
-    for (let sheetIndex = 0; sheetIndex < totalSheetsNeeded; sheetIndex++) {
+    while (queueIndex < printQueue.length) {
+      // For each new sheet
       const sheetDoc = await PDFDocument.create();
-      const [embeddedPage] = await sheetDoc.embedPdf(uploadedFile.buffer);
 
-      const logosOnThisSheet = Math.min(remaining, logosPerSheet);
-      const usedRows = Math.ceil(logosOnThisSheet / logosPerRow);
-      const usedHeightPts =
-        usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
-      const roundedHeightPts =
-        Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
-
-      const page = sheetDoc.addPage([sheetWidthPts, roundedHeightPts]);
-
-      let yCursor = roundedHeightPts - safeMarginPts - layoutHeight;
-      let drawn = 0;
-
-      while (drawn < logosOnThisSheet) {
-        let xCursor = safeMarginPts;
-        for (let c = 0; c < logosPerRow && drawn < logosOnThisSheet; c++) {
-          drawLogo(page, embeddedPage, xCursor, yCursor);
-          drawn++;
-          remaining--;
-          xCursor += logoTotalWidth;
-        }
-        yCursor -= logoTotalHeight;
+      // Embed all unique designs once for this sheet
+      const embeddedCache = {};
+      for (let d of allDesigns) {
+        const [embeddedPage] = await sheetDoc.embedPdf(d.buffer);
+        embeddedCache[d.filename] = embeddedPage;
       }
 
-      const pdfBytes = await sheetDoc.save();
-      const finalHeightInch = Math.ceil(roundedHeightPts / POINTS_PER_INCH);
+      let yCursor = maxHeightPts - safeMarginPts;
+      let usedHeightPts = safeMarginPts; // bottom margin
 
-      // ✅ Always round UP to the next cost tier
+      const page = sheetDoc.addPage([sheetWidthPts, maxHeightPts]);
+      let rowHeight = 0;
+
+      let xCursor = safeMarginPts;
+
+      while (queueIndex < printQueue.length) {
+        const d = printQueue[queueIndex];
+        const dTotalWidth = d.width + spacingPts;
+        const dTotalHeight = d.height + spacingPts;
+
+        // If this design is too wide for remaining row space -> go new row
+        if (xCursor + d.width > sheetWidthPts - safeMarginPts) {
+          xCursor = safeMarginPts;
+          yCursor -= (rowHeight + spacingPts);
+          rowHeight = 0;
+        }
+
+        // If no more vertical space -> sheet full
+        if (yCursor - d.height < safeMarginPts) break;
+
+        // Draw design
+        page.drawPage(embeddedCache[d.filename], { x: xCursor, y: yCursor - d.height });
+
+        // Track row height
+        if (d.height > rowHeight) rowHeight = d.height;
+
+        // Move cursor to next column
+        xCursor += dTotalWidth;
+
+        // Count it placed
+        queueIndex++;
+      }
+
+      // Calculate actual used height for pricing
+      const usedHeightPtsThisSheet = maxHeightPts - yCursor + safeMarginPts;
+      const roundedHeightPts = Math.ceil(usedHeightPtsThisSheet / POINTS_PER_INCH) * POINTS_PER_INCH;
+      const finalHeightInch = Math.ceil(roundedHeightPts / POINTS_PER_INCH);
       const cost = calculateCost(gangWidth, finalHeightInch);
 
+      const pdfBytes = await sheetDoc.save();
       const filename = `gangsheet_${gangWidth}x${finalHeightInch}.pdf`;
+
       allSheetData.push({
         filename,
         buffer: Buffer.from(pdfBytes),
@@ -158,6 +151,8 @@ app.post("/merge", upload.single("file"), async (req, res) => {
         height: finalHeightInch,
         cost
       });
+
+      log(`Generated sheet with ${queueIndex} designs so far`);
     }
 
     const totalCost = allSheetData.reduce((sum, s) => sum + s.cost, 0);
