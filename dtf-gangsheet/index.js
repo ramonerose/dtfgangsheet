@@ -1,164 +1,203 @@
-import express from "express";
-import multer from "multer";
-import { PDFDocument, degrees } from "pdf-lib";
-
-const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
-
-const PORT = process.env.PORT || 8080;
-
-// Constants
-const POINTS_PER_INCH = 72;
-const SAFE_MARGIN_INCH = 0.125;
-const SPACING_INCH = 0.5;
-
-app.use(express.static("public"));
-
-function log(msg) {
-  console.log(`[DEBUG] ${msg}`);
-}
-
-const COST_TABLE = {
-  12: 5.28, 24: 10.56, 36: 15.84, 48: 21.12,
-  60: 26.40, 80: 35.20, 100: 44.00, 120: 49.28,
-  140: 56.32, 160: 61.60, 180: 68.64, 200: 75.68
-};
-
-function calculateCost(widthInches, heightInches) {
-  const roundedHeight = Math.ceil(heightInches / 12) * 12;
-  return COST_TABLE[roundedHeight] ?? ((roundedHeight / 200) * 75.68);
-}
-
-app.post("/merge", upload.single("file"), async (req, res) => {
-  try {
-    log("/merge route hit!");
-
-    const quantity = parseInt(req.body.quantity, 10);
-    const rotate = req.body.rotate === "true";
-    const gangWidth = parseInt(req.body.gangWidth, 10); // 22 or 30
-    const maxLengthInches = parseInt(req.body.maxLength, 10) || 200;
-
-    const uploadedFile = req.file;
-    if (!uploadedFile) throw new Error("No file uploaded");
-    if (!quantity || quantity <= 0) throw new Error("Invalid quantity");
-
-    log(`Requested quantity: ${quantity}, rotate: ${rotate}`);
-    log(`Selected gang width: ${gangWidth} inches`);
-    log(`Max sheet length: ${maxLengthInches} inches`);
-    log(`Uploaded PDF size: ${uploadedFile.size} bytes`);
-
-    // Load uploaded PDF
-    const uploadedPdf = await PDFDocument.load(uploadedFile.buffer);
-    const uploadedPage = uploadedPdf.getPages()[0];
-    let { width: logoWidth, height: logoHeight } = uploadedPage.getSize();
-
-    // Swap width/height if rotating for layout math
-    let layoutWidth = logoWidth;
-    let layoutHeight = logoHeight;
-    if (rotate) [layoutWidth, layoutHeight] = [logoHeight, logoWidth];
-
-    const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
-    const spacingPts = SPACING_INCH * POINTS_PER_INCH;
-
-    const sheetWidthPts = gangWidth * POINTS_PER_INCH;
-    const maxHeightPts = maxLengthInches * POINTS_PER_INCH;
-
-    const logoTotalWidth = layoutWidth + spacingPts;
-    const logoTotalHeight = layoutHeight + spacingPts;
-
-    const logosPerRow = Math.floor(
-      (sheetWidthPts - safeMarginPts * 2 + spacingPts) / logoTotalWidth
-    );
-    if (logosPerRow < 1) throw new Error("Logo too wide for sheet");
-    log(`Can fit ${logosPerRow} logos per row`);
-
-    const rowsPerSheet = Math.floor(
-      (maxHeightPts - safeMarginPts * 2 + spacingPts) / logoTotalHeight
-    );
-    const logosPerSheet = logosPerRow * rowsPerSheet;
-
-    log(`Each sheet max ${rowsPerSheet} rows → ${logosPerSheet} logos per sheet`);
-
-    const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
-    log(`Total sheets needed: ${totalSheetsNeeded}`);
-
-    // Helper function to draw rotated or normal logo
-    const drawLogo = (page, embeddedPage, x, y) => {
-      if (rotate) {
-        page.drawPage(embeddedPage, {
-          x: x + logoHeight,
-          y,
-          rotate: degrees(90)
-        });
-      } else {
-        page.drawPage(embeddedPage, { x, y });
-      }
-    };
-
-    let allSheetData = []; // Store each generated PDF for later
-
-    let remaining = quantity;
-    for (let sheetIndex = 0; sheetIndex < totalSheetsNeeded; sheetIndex++) {
-      const sheetDoc = await PDFDocument.create();
-      const [embeddedPage] = await sheetDoc.embedPdf(uploadedFile.buffer);
-
-      const logosOnThisSheet = Math.min(remaining, logosPerSheet);
-      const usedRows = Math.ceil(logosOnThisSheet / logosPerRow);
-      const usedHeightPts =
-        usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
-      const roundedHeightPts =
-        Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
-
-      const page = sheetDoc.addPage([sheetWidthPts, roundedHeightPts]);
-
-      let yCursor = roundedHeightPts - safeMarginPts - layoutHeight;
-      let drawn = 0;
-
-      while (drawn < logosOnThisSheet) {
-        let xCursor = safeMarginPts;
-        for (let c = 0; c < logosPerRow && drawn < logosOnThisSheet; c++) {
-          drawLogo(page, embeddedPage, xCursor, yCursor);
-          drawn++;
-          remaining--;
-          xCursor += logoTotalWidth;
-        }
-        yCursor -= logoTotalHeight;
-      }
-
-      const pdfBytes = await sheetDoc.save();
-      const finalHeightInch = Math.ceil(roundedHeightPts / POINTS_PER_INCH);
-      const cost = calculateCost(gangWidth, finalHeightInch);
-
-      const filename = `gangsheet_${gangWidth}x${finalHeightInch}.pdf`;
-      allSheetData.push({
-        filename,
-        buffer: Buffer.from(pdfBytes),
-        width: gangWidth,
-        height: finalHeightInch,
-        cost
-      });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DTF Gang Sheet Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f9fa;
+      color: #333;
+      padding: 20px;
+      max-width: 700px;
+      margin: 0 auto;
     }
 
-    // Return JSON response with costs and encoded PDFs
-    const totalCost = allSheetData.reduce((sum, s) => sum + s.cost, 0);
+    h1 {
+      text-align: center;
+      font-size: 1.8rem;
+      margin-bottom: 20px;
+    }
 
-    res.json({
-      sheets: allSheetData.map(s => ({
-        filename: s.filename,
-        width: s.width,
-        height: s.height,
-        cost: s.cost,
-        pdfBase64: s.buffer.toString("base64")
-      })),
-      totalCost
+    .form-card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin: 10px 0 5px;
+    }
+
+    input[type="number"],
+    select,
+    input[type="file"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    button {
+      background: #007bff;
+      color: #fff;
+      border: none;
+      padding: 10px 15px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 15px;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    hr {
+      margin: 25px 0;
+    }
+
+    .result-card {
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+
+    .sheet-item {
+      margin: 8px 0;
+      padding: 10px;
+      background: #f1f1f1;
+      border-radius: 5px;
+    }
+
+    .cost {
+      color: #28a745;
+      font-weight: bold;
+      margin-left: 8px;
+    }
+
+    .download-all {
+      background: #28a745;
+      margin-top: 15px;
+    }
+
+    .download-all:hover {
+      background: #1e7e34;
+    }
+
+    .loading {
+      font-weight: bold;
+      color: #ff9800;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>DTF Gang Sheet Generator</h1>
+
+  <div class="form-card">
+    <form id="uploadForm">
+      <label>Select PDF file</label>
+      <input type="file" id="file" required />
+
+      <label>Quantity</label>
+      <input type="number" id="quantity" min="1" required />
+
+      <label>Rotate 90°?</label>
+      <select id="rotate">
+        <option value="false">No</option>
+        <option value="true">Yes</option>
+      </select>
+
+      <label>Gang Sheet Width</label>
+      <select id="gangWidth">
+        <option value="22" selected>22 inches</option>
+        <option value="30">30 inches</option>
+      </select>
+
+      <label>Max Sheet Length (inches)</label>
+      <input type="number" id="maxLength" min="12" value="200" />
+
+      <button type="submit">Generate Gang Sheet</button>
+    </form>
+  </div>
+
+  <div id="log"></div>
+
+  <script>
+    const form = document.getElementById("uploadForm");
+    const logDiv = document.getElementById("log");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      logDiv.innerHTML = `<p class="loading">⏳ Generating sheets...</p>`;
+
+      const file = document.getElementById("file").files[0];
+      const quantity = document.getElementById("quantity").value;
+      const rotate = document.getElementById("rotate").value;
+      const gangWidth = document.getElementById("gangWidth").value;
+      const maxLength = document.getElementById("maxLength").value;
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("quantity", quantity);
+      formData.append("rotate", rotate);
+      formData.append("gangWidth", gangWidth);
+      formData.append("maxLength", maxLength);
+
+      const response = await fetch("/merge", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        logDiv.innerHTML = `<p style="color:red;">❌ Server error! Please try again.</p>`;
+        return;
+      }
+
+      const data = await response.json();
+
+      let html = `
+        <div class="result-card">
+          <h3>✅ ${data.sheets.length} sheet(s) generated</h3>
+          <ul>
+      `;
+
+      data.sheets.forEach((s) => {
+        html += `
+          <li class="sheet-item">
+            📄 ${s.filename} 
+            <span class="cost">💰 $${s.cost.toFixed(2)}</span> 
+            <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}">⬇️ Download</a>
+          </li>
+        `;
+      });
+
+      html += `</ul>
+        <p><strong>Total Cost: $${data.totalCost.toFixed(2)}</strong></p>
+        <button id="downloadAll" class="download-all">⬇️ Download All</button>
+        </div>
+      `;
+
+      logDiv.innerHTML = html;
+
+      document.getElementById("downloadAll").addEventListener("click", () => {
+        data.sheets.forEach((s) => {
+          const a = document.createElement("a");
+          a.href = `data:application/pdf;base64,${s.pdfBase64}`;
+          a.download = s.filename;
+          a.click();
+        });
+      });
     });
+  </script>
 
-  } catch (err) {
-    console.error("MERGE ERROR:", err);
-    res.status(500).send(`Server error: ${err.message}`);
-  }
-});
-
-app.listen(PORT, () => {
-  console.log(`Backend running on port ${PORT}`);
-});
+</body>
+</html>
