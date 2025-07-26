@@ -12,22 +12,43 @@ const POINTS_PER_INCH = 72;
 const SAFE_MARGIN_INCH = 0.125;
 const SPACING_INCH = 0.5;
 
-app.use(express.static("public")); // serves test.html from /public
+app.use(express.static("public"));
 
 function log(msg) {
   console.log(`[DEBUG] ${msg}`);
 }
 
-// ✅ Cost tiers for supplier pricing
+// ✅ Cost table exactly as your screenshot
 const COST_TABLE = {
-  12: 5.28, 24: 10.56, 36: 15.84, 48: 21.12,
-  60: 26.40, 80: 35.20, 100: 44.00, 120: 49.28,
-  140: 56.32, 160: 61.60, 180: 68.64, 200: 75.68
+  12: 5.28,
+  24: 10.56,
+  36: 15.84,
+  48: 21.12,
+  60: 26.40,
+  80: 35.20,
+  100: 44.00,
+  120: 49.28,
+  140: 56.32,
+  160: 61.60,
+  180: 68.64,
+  200: 75.68
 };
 
+// ✅ NEW FIXED LOGIC
 function calculateCost(widthInches, heightInches) {
+  // Round UP to the next 12-inch increment
   const roundedHeight = Math.ceil(heightInches / 12) * 12;
-  return COST_TABLE[roundedHeight] ?? ((roundedHeight / 200) * 75.68);
+
+  // If exact tier exists, return it
+  if (COST_TABLE[roundedHeight]) {
+    return COST_TABLE[roundedHeight];
+  }
+
+  // Otherwise find the NEXT available tier (round up to next in table)
+  const availableTiers = Object.keys(COST_TABLE).map(Number).sort((a, b) => a - b);
+  const nextTier = availableTiers.find(t => t >= roundedHeight) || Math.max(...availableTiers);
+
+  return COST_TABLE[nextTier];
 }
 
 app.post("/merge", upload.single("file"), async (req, res) => {
@@ -48,12 +69,10 @@ app.post("/merge", upload.single("file"), async (req, res) => {
     log(`Max sheet length: ${maxLengthInches} inches`);
     log(`Uploaded PDF size: ${uploadedFile.size} bytes`);
 
-    // ✅ Load the uploaded PDF logo
     const uploadedPdf = await PDFDocument.load(uploadedFile.buffer);
     const uploadedPage = uploadedPdf.getPages()[0];
     let { width: logoWidth, height: logoHeight } = uploadedPage.getSize();
 
-    // ✅ If rotating, swap width/height
     let layoutWidth = logoWidth;
     let layoutHeight = logoHeight;
     if (rotate) [layoutWidth, layoutHeight] = [logoHeight, logoWidth];
@@ -127,6 +146,8 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 
       const pdfBytes = await sheetDoc.save();
       const finalHeightInch = Math.ceil(roundedHeightPts / POINTS_PER_INCH);
+
+      // ✅ Always round UP to the next cost tier
       const cost = calculateCost(gangWidth, finalHeightInch);
 
       const filename = `gangsheet_${gangWidth}x${finalHeightInch}.pdf`;
@@ -159,5 +180,5 @@ app.post("/merge", upload.single("file"), async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Backend running on port ${PORT}`);
+  console.log(`Backend running on port ${PORT}`);
 });
