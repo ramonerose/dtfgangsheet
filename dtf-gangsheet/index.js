@@ -85,17 +85,9 @@ app.post("/merge", upload.array("files"), async (req, res) => {
     let queueIndex = 0;
 
     while (queueIndex < printQueue.length) {
-      // ✅ Create a new sheet doc
       const sheetDoc = await PDFDocument.create();
 
-      // ✅ Embed all unique designs for this sheet
-      const embeddedCache = {};
-      for (let d of allDesigns) {
-        const [embeddedPage] = await sheetDoc.embedPdf(d.buffer);
-        embeddedCache[d.filename] = embeddedPage;
-      }
-
-      // ✅ Reset placement state fresh for each sheet
+      // ✅ Reset placement state for each new sheet
       let yCursor = maxHeightPts - safeMarginPts;
       let rowHeight = 0;
       let xCursor = safeMarginPts;
@@ -127,8 +119,10 @@ app.post("/merge", upload.array("files"), async (req, res) => {
           break;
         }
 
+        // ✅ EMBED FRESH FOR THIS SHEET/DRAW
+        const [embeddedPage] = await sheetDoc.embedPdf(d.buffer);
+
         // ✅ Draw on this sheet
-        const embeddedPage = embeddedCache[d.filename];
         page.drawPage(embeddedPage, {
           x: xCursor,
           y: yCursor - d.height
