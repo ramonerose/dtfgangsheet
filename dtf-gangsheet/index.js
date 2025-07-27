@@ -81,29 +81,33 @@ app.post("/merge", upload.array("files"), async (req, res) => {
     }
     log(`Total designs to place: ${printQueue.length}`);
 
+    // ✅ Pre-embed ALL unique designs ONCE globally
+    const globalEmbeddedCache = {};
+    const tempDoc = await PDFDocument.create();
+    for (let d of allDesigns) {
+      const [embeddedPage] = await tempDoc.embedPdf(d.buffer);
+      globalEmbeddedCache[d.filename] = embeddedPage;
+    }
+    log(`Global embedding complete for ${Object.keys(globalEmbeddedCache).length} designs`);
+
     let allSheetData = [];
     let queueIndex = 0;
 
     while (queueIndex < printQueue.length) {
       const sheetDoc = await PDFDocument.create();
+      const page = sheetDoc.addPage([sheetWidthPts, maxHeightPts]);
 
-      // Embed all unique designs for this sheet
-      const embeddedCache = {};
-      for (let d of allDesigns) {
-        const [embeddedPage] = await sheetDoc.embedPdf(d.buffer);
-        embeddedCache[d.filename] = embeddedPage;
-      }
-
-      // ✅ RESET all placement variables for each new sheet
+      // ✅ RESET placement state for each sheet
       let yCursor = maxHeightPts - safeMarginPts;
       let rowHeight = 0;
       let xCursor = safeMarginPts;
       let lowestY = maxHeightPts;
       let designsPlaced = 0;
 
-      const page = sheetDoc.addPage([sheetWidthPts, maxHeightPts]);
+      const remainingBefore = printQueue.length - queueIndex;
+      log(`Starting new sheet → ${remainingBefore} designs remaining`);
 
-      // ✅ Start placing designs
+      // ✅ Place designs on this sheet
       while (queueIndex < printQueue.length) {
         const d = printQueue[queueIndex];
         const dTotalWidth = d.width + spacingPts;
@@ -118,13 +122,14 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         // ✅ Stop if no vertical space left
         if (yCursor - d.height < safeMarginPts) break;
 
-        // ✅ Draw the design
-        page.drawPage(embeddedCache[d.filename], {
+        // ✅ Draw using globally embedded page
+        const embeddedPage = globalEmbeddedCache[d.filename];
+        page.drawPage(embeddedPage, {
           x: xCursor,
           y: yCursor - d.height
         });
-        designsPlaced++;
 
+        designsPlaced++;
         if (d.height > rowHeight) rowHeight = d.height;
 
         const designBottomY = yCursor - d.height;
@@ -134,7 +139,10 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         queueIndex++;
       }
 
-      // ✅ If no designs were placed, stop without creating blank sheet
+      const remainingAfter = printQueue.length - queueIndex;
+      log(`Placed ${designsPlaced} designs on this sheet → ${remainingAfter} left in queue`);
+
+      // ✅ If no designs placed, stop leftover blank sheet
       if (designsPlaced === 0) {
         log("No designs placed → stopping leftover blank sheet");
         break;
@@ -172,7 +180,7 @@ app.post("/merge", upload.array("files"), async (req, res) => {
       });
 
       log(
-        `Generated sheet ${filename} with ${designsPlaced} designs → used ~${usedHeightInches.toFixed(
+        `✅ Generated sheet ${filename} with ${designsPlaced} designs → used ~${usedHeightInches.toFixed(
           1
         )}” rounded to ${finalHeightInches}”`
       );
