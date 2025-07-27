@@ -55,7 +55,7 @@ app.post("/merge", upload.array("files"), async (req, res) => {
     const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
     const spacingPts = SPACING_INCH * POINTS_PER_INCH;
 
-    // ✅ Load all uploaded PDFs, store their pages as "designs"
+    // ✅ Load all uploaded PDFs, store their sizes
     const allDesigns = [];
     for (const file of uploadedFiles) {
       const pdfDoc = await PDFDocument.load(file.buffer);
@@ -72,7 +72,7 @@ app.post("/merge", upload.array("files"), async (req, res) => {
       });
     }
 
-    // ✅ Build a "print list" with N copies of each design
+    // ✅ Build printQueue: N copies of each design
     let printQueue = [];
     for (const design of allDesigns) {
       for (let i = 0; i < quantity; i++) {
@@ -81,38 +81,37 @@ app.post("/merge", upload.array("files"), async (req, res) => {
     }
     log(`Total designs to place: ${printQueue.length}`);
 
-    // ✅ Pre-embed ALL unique designs ONCE globally
-    const globalEmbeddedCache = {};
-    const tempDoc = await PDFDocument.create();
-    for (let d of allDesigns) {
-      const [embeddedPage] = await tempDoc.embedPdf(d.buffer);
-      globalEmbeddedCache[d.filename] = embeddedPage;
-    }
-    log(`Global embedding complete for ${Object.keys(globalEmbeddedCache).length} designs`);
-
     let allSheetData = [];
     let queueIndex = 0;
 
     while (queueIndex < printQueue.length) {
+      // ✅ Create a new sheet doc
       const sheetDoc = await PDFDocument.create();
-      const page = sheetDoc.addPage([sheetWidthPts, maxHeightPts]);
 
-      // ✅ RESET placement state for each sheet
+      // ✅ Embed all unique designs for this sheet
+      const embeddedCache = {};
+      for (let d of allDesigns) {
+        const [embeddedPage] = await sheetDoc.embedPdf(d.buffer);
+        embeddedCache[d.filename] = embeddedPage;
+      }
+
+      // ✅ Reset placement state for each sheet
       let yCursor = maxHeightPts - safeMarginPts;
       let rowHeight = 0;
       let xCursor = safeMarginPts;
       let lowestY = maxHeightPts;
       let designsPlaced = 0;
 
+      const page = sheetDoc.addPage([sheetWidthPts, maxHeightPts]);
+
       const remainingBefore = printQueue.length - queueIndex;
       log(`Starting new sheet → ${remainingBefore} designs remaining`);
 
-      // ✅ Place designs on this sheet
       while (queueIndex < printQueue.length) {
         const d = printQueue[queueIndex];
         const dTotalWidth = d.width + spacingPts;
 
-        // ✅ Wrap to next row if needed
+        // ✅ Wrap row if needed
         if (xCursor + d.width > sheetWidthPts - safeMarginPts) {
           xCursor = safeMarginPts;
           yCursor -= (rowHeight + spacingPts);
@@ -122,8 +121,8 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         // ✅ Stop if no vertical space left
         if (yCursor - d.height < safeMarginPts) break;
 
-        // ✅ Draw using globally embedded page
-        const embeddedPage = globalEmbeddedCache[d.filename];
+        // ✅ Draw on this sheet
+        const embeddedPage = embeddedCache[d.filename];
         page.drawPage(embeddedPage, {
           x: xCursor,
           y: yCursor - d.height
@@ -142,31 +141,27 @@ app.post("/merge", upload.array("files"), async (req, res) => {
       const remainingAfter = printQueue.length - queueIndex;
       log(`Placed ${designsPlaced} designs on this sheet → ${remainingAfter} left in queue`);
 
-      // ✅ If no designs placed, stop leftover blank sheet
       if (designsPlaced === 0) {
         log("No designs placed → stopping leftover blank sheet");
         break;
       }
 
-      // ✅ Calculate actual used height
+      // ✅ Calculate used height
       let usedHeightInches = (maxHeightPts - lowestY + safeMarginPts) / POINTS_PER_INCH;
 
-      // ✅ Clamp used height to NEVER exceed max sheet length
+      // ✅ Clamp used height
       if (usedHeightInches > maxLengthInches) {
         usedHeightInches = maxLengthInches;
       }
 
-      // ✅ Round UP to the next 12” tier
+      // ✅ Round UP to next 12"
       const roundedHeightInches = Math.ceil(usedHeightInches / 12) * 12;
-
-      // ✅ Clamp rounded height to max allowed (e.g. 200)
       const finalHeightInches = Math.min(roundedHeightInches, maxLengthInches);
 
       // ✅ Resize page
       const finalHeightPts = finalHeightInches * POINTS_PER_INCH;
       page.setSize(sheetWidthPts, finalHeightPts);
 
-      // ✅ Correct pricing for rounded height
       const cost = calculateCost(gangWidth, finalHeightInches);
       const pdfBytes = await sheetDoc.save();
       const filename = `gangsheet_${gangWidth}x${finalHeightInches}.pdf`;
