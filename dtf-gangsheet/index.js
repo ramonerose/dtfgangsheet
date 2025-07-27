@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { PDFDocument, degrees } from "pdf-lib";
+import { PDFDocument } from "pdf-lib";
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -55,12 +55,12 @@ app.post("/merge", upload.array("files"), async (req, res) => {
     const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
     const spacingPts = SPACING_INCH * POINTS_PER_INCH;
 
-    // ✅ Load all uploaded PDFs, store their sizes
+    // ✅ Preload each uploaded PDF as a template with its first page
     const allDesigns = [];
     for (const file of uploadedFiles) {
       const pdfDoc = await PDFDocument.load(file.buffer);
-      const page = pdfDoc.getPages()[0];
-      let { width: designW, height: designH } = page.getSize();
+      const firstPage = pdfDoc.getPages()[0];
+      let { width: designW, height: designH } = firstPage.getSize();
 
       if (rotate) [designW, designH] = [designH, designW];
 
@@ -68,7 +68,8 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         buffer: file.buffer,
         width: designW,
         height: designH,
-        filename: file.originalname
+        filename: file.originalname,
+        templateDoc: pdfDoc, // store loaded template for copyPages()
       });
     }
 
@@ -119,13 +120,13 @@ app.post("/merge", upload.array("files"), async (req, res) => {
           break;
         }
 
-        // ✅ EMBED FRESH FOR THIS SHEET/DRAW
-        const [embeddedPage] = await sheetDoc.embedPdf(d.buffer);
+        // ✅ COPY PAGE FROM TEMPLATE DOC → embed into this sheetDoc
+        const [copiedPage] = await sheetDoc.copyPages(d.templateDoc, [0]);
 
-        // ✅ Draw on this sheet
-        page.drawPage(embeddedPage, {
+        // ✅ Draw it at correct position
+        page.drawPage(copiedPage, {
           x: xCursor,
-          y: yCursor - d.height
+          y: yCursor - d.height,
         });
 
         log(
@@ -177,7 +178,7 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         buffer: Buffer.from(pdfBytes),
         width: gangWidth,
         height: finalHeightInches,
-        cost
+        cost,
       });
 
       log(
@@ -195,9 +196,9 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         width: s.width,
         height: s.height,
         cost: s.cost,
-        pdfBase64: s.buffer.toString("base64")
+        pdfBase64: s.buffer.toString("base64"),
       })),
-      totalCost
+      totalCost,
     });
   } catch (err) {
     console.error("MERGE ERROR:", err);
