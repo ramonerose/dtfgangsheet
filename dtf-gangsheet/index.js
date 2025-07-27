@@ -7,7 +7,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 const PORT = process.env.PORT || 8080;
 
-// Constants
 const POINTS_PER_INCH = 72;
 const SAFE_MARGIN_INCH = 0.125;
 const SPACING_INCH = 0.5;
@@ -18,14 +17,12 @@ function log(msg) {
   console.log(`[DEBUG] ${msg}`);
 }
 
-// ✅ Cost table
 const COST_TABLE = {
   12: 5.28, 24: 10.56, 36: 15.84, 48: 21.12,
   60: 26.40, 80: 35.20, 100: 44.00, 120: 49.28,
   140: 56.32, 160: 61.60, 180: 68.64, 200: 75.68
 };
 
-// ✅ Cost rounding logic
 function calculateCost(widthInches, heightInches) {
   const roundedHeight = Math.ceil(heightInches / 12) * 12;
   if (COST_TABLE[roundedHeight]) return COST_TABLE[roundedHeight];
@@ -84,12 +81,10 @@ app.post("/merge", upload.array("files"), async (req, res) => {
     }
     log(`Total designs to place: ${printQueue.length}`);
 
-    // ✅ Now we’ll generate sheets
     let allSheetData = [];
     let queueIndex = 0;
 
     while (queueIndex < printQueue.length) {
-      // For each new sheet
       const sheetDoc = await PDFDocument.create();
 
       // Embed all unique designs once for this sheet
@@ -99,27 +94,26 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         embeddedCache[d.filename] = embeddedPage;
       }
 
-      let yCursor = maxHeightPts - safeMarginPts;
-      let usedHeightPts = safeMarginPts; // bottom margin
-
+      // Start with a full-length page
       const page = sheetDoc.addPage([sheetWidthPts, maxHeightPts]);
-      let rowHeight = 0;
 
+      let yCursor = maxHeightPts - safeMarginPts;
+      let rowHeight = 0;
       let xCursor = safeMarginPts;
+      let lowestY = maxHeightPts; // Track lowest point reached
 
       while (queueIndex < printQueue.length) {
         const d = printQueue[queueIndex];
         const dTotalWidth = d.width + spacingPts;
-        const dTotalHeight = d.height + spacingPts;
 
-        // If this design is too wide for remaining row space -> go new row
+        // ✅ If design won't fit in this row, move down one row
         if (xCursor + d.width > sheetWidthPts - safeMarginPts) {
           xCursor = safeMarginPts;
           yCursor -= (rowHeight + spacingPts);
           rowHeight = 0;
         }
 
-        // If no more vertical space -> sheet full
+        // ✅ Check if there’s still space vertically
         if (yCursor - d.height < safeMarginPts) break;
 
         // Draw design
@@ -128,31 +122,42 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         // Track row height
         if (d.height > rowHeight) rowHeight = d.height;
 
-        // Move cursor to next column
+        // Update lowest used Y
+        const designBottomY = yCursor - d.height;
+        if (designBottomY < lowestY) lowestY = designBottomY;
+
+        // Move cursor right
         xCursor += dTotalWidth;
 
-        // Count it placed
         queueIndex++;
       }
 
-      // Calculate actual used height for pricing
-      const usedHeightPtsThisSheet = maxHeightPts - yCursor + safeMarginPts;
-      const roundedHeightPts = Math.ceil(usedHeightPtsThisSheet / POINTS_PER_INCH) * POINTS_PER_INCH;
-      const finalHeightInch = Math.ceil(roundedHeightPts / POINTS_PER_INCH);
-      const cost = calculateCost(gangWidth, finalHeightInch);
+      // ✅ Calculate actual used height
+      const usedHeightPts = maxHeightPts - lowestY + safeMarginPts;
+      const usedHeightInches = usedHeightPts / POINTS_PER_INCH;
+
+      // ✅ Round UP to the next 12” tier
+      const roundedHeightInches = Math.ceil(usedHeightInches / 12) * 12;
+
+      // ✅ Resize the page to the rounded height
+      const finalHeightPts = roundedHeightInches * POINTS_PER_INCH;
+      page.setSize(sheetWidthPts, finalHeightPts);
+
+      // ✅ Correct pricing for rounded height
+      const cost = calculateCost(gangWidth, roundedHeightInches);
 
       const pdfBytes = await sheetDoc.save();
-      const filename = `gangsheet_${gangWidth}x${finalHeightInch}.pdf`;
+      const filename = `gangsheet_${gangWidth}x${roundedHeightInches}.pdf`;
 
       allSheetData.push({
         filename,
         buffer: Buffer.from(pdfBytes),
         width: gangWidth,
-        height: finalHeightInch,
+        height: roundedHeightInches,
         cost
       });
 
-      log(`Generated sheet with ${queueIndex} designs so far`);
+      log(`Generated sheet ${filename} (true height ~${usedHeightInches.toFixed(1)}”, rounded to ${roundedHeightInches}”)`);
     }
 
     const totalCost = allSheetData.reduce((sum, s) => sum + s.cost, 0);
