@@ -87,56 +87,56 @@ app.post("/merge", upload.array("files"), async (req, res) => {
     while (queueIndex < printQueue.length) {
       const sheetDoc = await PDFDocument.create();
 
-      // Embed all unique designs once for this sheet
+      // Embed all unique designs for this sheet
       const embeddedCache = {};
       for (let d of allDesigns) {
         const [embeddedPage] = await sheetDoc.embedPdf(d.buffer);
         embeddedCache[d.filename] = embeddedPage;
       }
 
-      // Start with a full-length page
-      const page = sheetDoc.addPage([sheetWidthPts, maxHeightPts]);
-
+      // ✅ RESET all placement variables for each new sheet
       let yCursor = maxHeightPts - safeMarginPts;
       let rowHeight = 0;
       let xCursor = safeMarginPts;
       let lowestY = maxHeightPts;
       let designsPlaced = 0;
 
+      const page = sheetDoc.addPage([sheetWidthPts, maxHeightPts]);
+
+      // ✅ Start placing designs
       while (queueIndex < printQueue.length) {
         const d = printQueue[queueIndex];
         const dTotalWidth = d.width + spacingPts;
 
-        // ✅ If design won't fit in this row, move down one row
+        // ✅ Wrap to next row if needed
         if (xCursor + d.width > sheetWidthPts - safeMarginPts) {
           xCursor = safeMarginPts;
           yCursor -= (rowHeight + spacingPts);
           rowHeight = 0;
         }
 
-        // ✅ Check if there’s still space vertically
+        // ✅ Stop if no vertical space left
         if (yCursor - d.height < safeMarginPts) break;
 
-        // Draw design
-        page.drawPage(embeddedCache[d.filename], { x: xCursor, y: yCursor - d.height });
+        // ✅ Draw the design
+        page.drawPage(embeddedCache[d.filename], {
+          x: xCursor,
+          y: yCursor - d.height
+        });
         designsPlaced++;
 
-        // Track row height
         if (d.height > rowHeight) rowHeight = d.height;
 
-        // Update lowest used Y
         const designBottomY = yCursor - d.height;
         if (designBottomY < lowestY) lowestY = designBottomY;
 
-        // Move cursor right
         xCursor += dTotalWidth;
-
         queueIndex++;
       }
 
-      // ✅ If no designs placed, skip leftover blank sheet
+      // ✅ If no designs were placed, stop without creating blank sheet
       if (designsPlaced === 0) {
-        log(`Skipping leftover blank sheet.`);
+        log("No designs placed → stopping leftover blank sheet");
         break;
       }
 
@@ -160,7 +160,6 @@ app.post("/merge", upload.array("files"), async (req, res) => {
 
       // ✅ Correct pricing for rounded height
       const cost = calculateCost(gangWidth, finalHeightInches);
-
       const pdfBytes = await sheetDoc.save();
       const filename = `gangsheet_${gangWidth}x${finalHeightInches}.pdf`;
 
@@ -172,7 +171,11 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         cost
       });
 
-      log(`Generated sheet ${filename} → designs placed: ${designsPlaced}, actual used ~${usedHeightInches.toFixed(1)}”, rounded to ${finalHeightInches}”`);
+      log(
+        `Generated sheet ${filename} with ${designsPlaced} designs → used ~${usedHeightInches.toFixed(
+          1
+        )}” rounded to ${finalHeightInches}”`
+      );
     }
 
     const totalCost = allSheetData.reduce((sum, s) => sum + s.cost, 0);
@@ -187,7 +190,6 @@ app.post("/merge", upload.array("files"), async (req, res) => {
       })),
       totalCost
     });
-
   } catch (err) {
     console.error("MERGE ERROR:", err);
     res.status(500).send(`Server error: ${err.message}`);
