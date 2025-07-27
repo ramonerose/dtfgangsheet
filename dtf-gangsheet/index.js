@@ -55,7 +55,7 @@ app.post("/merge", upload.array("files"), async (req, res) => {
     const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
     const spacingPts = SPACING_INCH * POINTS_PER_INCH;
 
-    // ✅ Preload each uploaded PDF as a template with its first page
+    // ✅ Preload each uploaded PDF as a template with its first page size
     const allDesigns = [];
     for (const file of uploadedFiles) {
       const pdfDoc = await PDFDocument.load(file.buffer);
@@ -69,7 +69,6 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         width: designW,
         height: designH,
         filename: file.originalname,
-        templateDoc: pdfDoc, // store loaded template for copyPages()
       });
     }
 
@@ -120,11 +119,11 @@ app.post("/merge", upload.array("files"), async (req, res) => {
           break;
         }
 
-        // ✅ COPY PAGE FROM TEMPLATE DOC → embed into this sheetDoc
-        const [copiedPage] = await sheetDoc.copyPages(d.templateDoc, [0]);
+        // ✅ EMBED FRESH AS XOBJECT FOR THIS SHEET
+        const [xObjectPage] = await sheetDoc.embedPdf(d.buffer);
 
         // ✅ Draw it at correct position
-        page.drawPage(copiedPage, {
+        page.drawPage(xObjectPage, {
           x: xCursor,
           y: yCursor - d.height,
         });
