@@ -95,7 +95,7 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         embeddedCache[d.filename] = embeddedPage;
       }
 
-      // ✅ Reset placement state for each sheet
+      // ✅ Reset placement state fresh for each sheet
       let yCursor = maxHeightPts - safeMarginPts;
       let rowHeight = 0;
       let xCursor = safeMarginPts;
@@ -105,7 +105,9 @@ app.post("/merge", upload.array("files"), async (req, res) => {
       const page = sheetDoc.addPage([sheetWidthPts, maxHeightPts]);
 
       const remainingBefore = printQueue.length - queueIndex;
-      log(`Starting new sheet → ${remainingBefore} designs remaining`);
+      log(`\n=== NEW SHEET START ===`);
+      log(`Remaining before placement: ${remainingBefore}`);
+      log(`Initial yCursor: ${yCursor}, lowestY: ${lowestY}`);
 
       while (queueIndex < printQueue.length) {
         const d = printQueue[queueIndex];
@@ -116,10 +118,14 @@ app.post("/merge", upload.array("files"), async (req, res) => {
           xCursor = safeMarginPts;
           yCursor -= (rowHeight + spacingPts);
           rowHeight = 0;
+          log(`Row wrapped → new yCursor: ${yCursor}`);
         }
 
         // ✅ Stop if no vertical space left
-        if (yCursor - d.height < safeMarginPts) break;
+        if (yCursor - d.height < safeMarginPts) {
+          log(`Not enough vertical space for ${d.filename}, breaking…`);
+          break;
+        }
 
         // ✅ Draw on this sheet
         const embeddedPage = embeddedCache[d.filename];
@@ -127,6 +133,12 @@ app.post("/merge", upload.array("files"), async (req, res) => {
           x: xCursor,
           y: yCursor - d.height
         });
+
+        log(
+          `Placed ${d.filename} at X:${xCursor.toFixed(1)} Y:${(yCursor - d.height).toFixed(
+            1
+          )} (H:${d.height.toFixed(1)})`
+        );
 
         designsPlaced++;
         if (d.height > rowHeight) rowHeight = d.height;
@@ -139,10 +151,10 @@ app.post("/merge", upload.array("files"), async (req, res) => {
       }
 
       const remainingAfter = printQueue.length - queueIndex;
-      log(`Placed ${designsPlaced} designs on this sheet → ${remainingAfter} left in queue`);
+      log(`Placed ${designsPlaced} designs this sheet → ${remainingAfter} left`);
 
       if (designsPlaced === 0) {
-        log("No designs placed → stopping leftover blank sheet");
+        log(`⚠ No designs placed → stopping leftover blank sheet`);
         break;
       }
 
