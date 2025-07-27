@@ -4,9 +4,19 @@
   <meta charset="UTF-8">
   <title>EZ Gang Sheets</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .drop-zone {
+      border: 2px dashed #cbd5e1;
+      transition: border 0.3s ease;
+    }
+    .drop-zone.dragover {
+      border-color: #3b82f6;
+    }
+  </style>
 </head>
 <body class="bg-gray-100 text-gray-900">
 
+  <!-- Logo -->
   <div class="flex flex-col items-center mt-6">
     <img src="EZGangSheetsLogo.png" alt="EZGangSheets Logo" class="w-[256px]">
   </div>
@@ -14,7 +24,7 @@
   <div class="max-w-lg mx-auto bg-white shadow-md rounded-lg p-6 mt-6">
 
     <!-- Drag & Drop Zone -->
-    <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
+    <div id="dropZone" class="drop-zone rounded-lg p-6 text-center cursor-pointer hover:border-blue-500">
       <div class="flex flex-col items-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-blue-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12v9m0-9l-3-3m3 3l3-3M12 3v9" />
@@ -26,11 +36,12 @@
     </div>
 
     <!-- Thumbnail Preview -->
-    <div id="filePreview" class="hidden mt-4 p-3 border rounded bg-gray-50 text-center">
+    <div id="filePreview" class="hidden mt-4 text-center">
       <p id="fileName" class="text-green-700 font-medium"></p>
-      <img id="thumbPreview" class="mx-auto mt-2 rounded shadow-md" style="max-height:150px;">
+      <canvas id="pdfThumb" class="mx-auto mt-3 rounded shadow" style="max-height:180px;"></canvas>
     </div>
 
+    <!-- Form Fields -->
     <label class="block mt-4 font-semibold">Quantity</label>
     <input type="number" id="quantity" min="1" class="border rounded w-full p-2" required>
 
@@ -54,26 +65,28 @@
     </button>
   </div>
 
+  <!-- Results -->
   <div id="log" class="max-w-lg mx-auto mt-6"></div>
+
+  <!-- PDF.js for Thumbnails -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
 
   <script>
     const dropZone = document.getElementById("dropZone");
     const fileInput = document.getElementById("file");
     const filePreview = document.getElementById("filePreview");
     const fileNameEl = document.getElementById("fileName");
-    const thumbPreview = document.getElementById("thumbPreview");
+    const pdfThumb = document.getElementById("pdfThumb");
 
     dropZone.addEventListener("click", () => fileInput.click());
     dropZone.addEventListener("dragover", (e) => {
       e.preventDefault();
-      dropZone.classList.add("border-blue-500");
+      dropZone.classList.add("dragover");
     });
-    dropZone.addEventListener("dragleave", () => {
-      dropZone.classList.remove("border-blue-500");
-    });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
     dropZone.addEventListener("drop", (e) => {
       e.preventDefault();
-      dropZone.classList.remove("border-blue-500");
+      dropZone.classList.remove("dragover");
       const file = e.dataTransfer.files[0];
       if (file) showPreview(file);
     });
@@ -82,15 +95,22 @@
       if (file) showPreview(file);
     });
 
-    function showPreview(file) {
+    async function showPreview(file) {
       fileNameEl.textContent = `✅ Selected: ${file.name}`;
       filePreview.classList.remove("hidden");
 
       const reader = new FileReader();
-      reader.onload = () => {
-        thumbPreview.src = "/api/placeholder-thumbnail"; // fallback, no PDF real thumbnail
+      reader.onload = async function() {
+        const typedArray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 0.3 });
+        const context = pdfThumb.getContext('2d');
+        pdfThumb.width = viewport.width;
+        pdfThumb.height = viewport.height;
+        await page.render({ canvasContext: context, viewport }).promise;
       };
-      reader.readAsDataURL(file);
+      reader.readAsArrayBuffer(file);
     }
 
     document.getElementById("generateBtn").addEventListener("click", async () => {
