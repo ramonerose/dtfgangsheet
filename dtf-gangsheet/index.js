@@ -27,8 +27,8 @@ function calculateCost(widthInches, heightInches) {
   const roundedHeight = Math.ceil(heightInches / 12) * 12;
   if (COST_TABLE[roundedHeight]) return COST_TABLE[roundedHeight];
 
-  const tiers = Object.keys(COST_TABLE).map(Number).sort((a,b) => a-b);
-  const nextTier = tiers.find(t => t >= roundedHeight) || Math.max(...tiers);
+  const tiers = Object.keys(COST_TABLE).map(Number).sort((a, b) => a - b);
+  const nextTier = tiers.find((t) => t >= roundedHeight) || Math.max(...tiers);
   return COST_TABLE[nextTier];
 }
 
@@ -100,7 +100,8 @@ app.post("/merge", upload.array("files"), async (req, res) => {
       let yCursor = maxHeightPts - safeMarginPts;
       let rowHeight = 0;
       let xCursor = safeMarginPts;
-      let lowestY = maxHeightPts; // Track lowest point reached
+      let lowestY = maxHeightPts;
+      let designsPlaced = 0;
 
       while (queueIndex < printQueue.length) {
         const d = printQueue[queueIndex];
@@ -118,6 +119,7 @@ app.post("/merge", upload.array("files"), async (req, res) => {
 
         // Draw design
         page.drawPage(embeddedCache[d.filename], { x: xCursor, y: yCursor - d.height });
+        designsPlaced++;
 
         // Track row height
         if (d.height > rowHeight) rowHeight = d.height;
@@ -132,38 +134,51 @@ app.post("/merge", upload.array("files"), async (req, res) => {
         queueIndex++;
       }
 
+      // ✅ If no designs placed, skip leftover blank sheet
+      if (designsPlaced === 0) {
+        log(`Skipping leftover blank sheet.`);
+        break;
+      }
+
       // ✅ Calculate actual used height
-      const usedHeightPts = maxHeightPts - lowestY + safeMarginPts;
-      const usedHeightInches = usedHeightPts / POINTS_PER_INCH;
+      let usedHeightInches = (maxHeightPts - lowestY + safeMarginPts) / POINTS_PER_INCH;
+
+      // ✅ Clamp used height to NEVER exceed max sheet length
+      if (usedHeightInches > maxLengthInches) {
+        usedHeightInches = maxLengthInches;
+      }
 
       // ✅ Round UP to the next 12” tier
       const roundedHeightInches = Math.ceil(usedHeightInches / 12) * 12;
 
-      // ✅ Resize the page to the rounded height
-      const finalHeightPts = roundedHeightInches * POINTS_PER_INCH;
+      // ✅ Clamp rounded height to max allowed (e.g. 200)
+      const finalHeightInches = Math.min(roundedHeightInches, maxLengthInches);
+
+      // ✅ Resize page
+      const finalHeightPts = finalHeightInches * POINTS_PER_INCH;
       page.setSize(sheetWidthPts, finalHeightPts);
 
       // ✅ Correct pricing for rounded height
-      const cost = calculateCost(gangWidth, roundedHeightInches);
+      const cost = calculateCost(gangWidth, finalHeightInches);
 
       const pdfBytes = await sheetDoc.save();
-      const filename = `gangsheet_${gangWidth}x${roundedHeightInches}.pdf`;
+      const filename = `gangsheet_${gangWidth}x${finalHeightInches}.pdf`;
 
       allSheetData.push({
         filename,
         buffer: Buffer.from(pdfBytes),
         width: gangWidth,
-        height: roundedHeightInches,
+        height: finalHeightInches,
         cost
       });
 
-      log(`Generated sheet ${filename} (true height ~${usedHeightInches.toFixed(1)}”, rounded to ${roundedHeightInches}”)`);
+      log(`Generated sheet ${filename} → designs placed: ${designsPlaced}, actual used ~${usedHeightInches.toFixed(1)}”, rounded to ${finalHeightInches}”`);
     }
 
     const totalCost = allSheetData.reduce((sum, s) => sum + s.cost, 0);
 
     res.json({
-      sheets: allSheetData.map(s => ({
+      sheets: allSheetData.map((s) => ({
         filename: s.filename,
         width: s.width,
         height: s.height,
