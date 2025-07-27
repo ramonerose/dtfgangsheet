@@ -1,164 +1,184 @@
 import express from "express";
 import multer from "multer";
-import bodyParser from "body-parser";
-import cors from "cors";
-import fs from "fs";
-import path from "path";
-import PDFMerger from "pdf-lib"; // we'll use pdf-lib
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, degrees } from "pdf-lib";
 
 const app = express();
+const upload = multer({ storage: multer.memoryStorage() });
+
 const PORT = process.env.PORT || 8080;
 
-app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static("public")); // For serving the HTML frontend
+// Constants
+const POINTS_PER_INCH = 72;
+const SAFE_MARGIN_INCH = 0.125;
+const SPACING_INCH = 0.5;
 
-// ✅ File Upload Handling
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+app.use(express.static("public"));
 
-// ✅ Constants
-const DPI = 300;                // Standard PDF DPI
-const INCH_TO_POINTS = 72;      // PDF units (points)
-const SPACING_INCH = 0.25;      // 1/4 inch spacing
-const SPACING_POINTS = SPACING_INCH * INCH_TO_POINTS;
-
-// ✅ Cost tiers for pricing
-const COST_TABLE = [
-  { length: 12, cost: 5.28 },
-  { length: 24, cost: 10.56 },
-  { length: 36, cost: 15.84 },
-  { length: 48, cost: 21.12 },
-  { length: 60, cost: 26.40 },
-  { length: 80, cost: 35.20 },
-  { length: 100, cost: 44.00 },
-  { length: 120, cost: 49.28 },
-  { length: 140, cost: 56.32 },
-  { length: 160, cost: 61.60 },
-  { length: 180, cost: 68.64 },
-  { length: 200, cost: 75.68 }
-];
-
-// ✅ Helper: Round up to next pricing tier
-function getCostForLength(length) {
-  for (let tier of COST_TABLE) {
-    if (length <= tier.length) return tier.cost;
-  }
-  return COST_TABLE[COST_TABLE.length - 1].cost; // Max cost fallback
+function log(msg) {
+  console.log(`[DEBUG] ${msg}`);
 }
 
-// ✅ POST /merge → Main logic
+// ✅ Cost table exactly as your screenshot
+const COST_TABLE = {
+  12: 5.28,
+  24: 10.56,
+  36: 15.84,
+  48: 21.12,
+  60: 26.40,
+  80: 35.20,
+  100: 44.00,
+  120: 49.28,
+  140: 56.32,
+  160: 61.60,
+  180: 68.64,
+  200: 75.68
+};
+
+// ✅ NEW FIXED LOGIC
+function calculateCost(widthInches, heightInches) {
+  // Round UP to the next 12-inch increment
+  const roundedHeight = Math.ceil(heightInches / 12) * 12;
+
+  // If exact tier exists, return it
+  if (COST_TABLE[roundedHeight]) {
+    return COST_TABLE[roundedHeight];
+  }
+
+  // Otherwise find the NEXT available tier (round up to next in table)
+  const availableTiers = Object.keys(COST_TABLE).map(Number).sort((a, b) => a - b);
+  const nextTier = availableTiers.find(t => t >= roundedHeight) || Math.max(...availableTiers);
+
+  return COST_TABLE[nextTier];
+}
+
 app.post("/merge", upload.single("file"), async (req, res) => {
   try {
-    const quantity = parseInt(req.body.quantity) || 1;
+    log("/merge route hit!");
+
+    const quantity = parseInt(req.body.quantity, 10);
     const rotate = req.body.rotate === "true";
-    const gangWidthInches = parseFloat(req.body.gangWidth) || 22;
-    const maxLengthInches = parseFloat(req.body.maxLength) || 200;
+    const gangWidth = parseInt(req.body.gangWidth, 10); // 22 or 30
+    const maxLengthInches = parseInt(req.body.maxLength, 10) || 200;
 
-    const gangWidthPoints = gangWidthInches * INCH_TO_POINTS;
-    const maxLengthPoints = maxLengthInches * INCH_TO_POINTS;
+    const uploadedFile = req.file;
+    if (!uploadedFile) throw new Error("No file uploaded");
+    if (!quantity || quantity <= 0) throw new Error("Invalid quantity");
 
-    console.log("=== GANG SHEET REQUEST ===");
-    console.log(`Quantity: ${quantity}, Rotate: ${rotate}`);
-    console.log(`Width: ${gangWidthInches}in → ${gangWidthPoints}pts, Max Length: ${maxLengthInches}in → ${maxLengthPoints}pts`);
+    log(`Requested quantity: ${quantity}, rotate: ${rotate}`);
+    log(`Selected gang width: ${gangWidth} inches`);
+    log(`Max sheet length: ${maxLengthInches} inches`);
+    log(`Uploaded PDF size: ${uploadedFile.size} bytes`);
 
-    // ✅ Load uploaded PDF
-    const uploadedPdf = await PDFDocument.load(req.file.buffer);
-    const firstPage = uploadedPdf.getPages()[0];
-    let { width: artWidthPts, height: artHeightPts } = firstPage.getSize();
+    const uploadedPdf = await PDFDocument.load(uploadedFile.buffer);
+    const uploadedPage = uploadedPdf.getPages()[0];
+    let { width: logoWidth, height: logoHeight } = uploadedPage.getSize();
 
-    // ✅ Rotate if requested
-    if (rotate) [artWidthPts, artHeightPts] = [artHeightPts, artWidthPts];
+    let layoutWidth = logoWidth;
+    let layoutHeight = logoHeight;
+    if (rotate) [layoutWidth, layoutHeight] = [logoHeight, logoWidth];
 
-    // ✅ Scale art to fit width
-    const scaleFactor = gangWidthPoints / artWidthPts;
-    const scaledArtWidth = gangWidthPoints;
-    const scaledArtHeight = artHeightPts * scaleFactor;
+    const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
+    const spacingPts = SPACING_INCH * POINTS_PER_INCH;
 
-    console.log(`Scaled Art → ${scaledArtWidth} x ${scaledArtHeight}`);
+    const sheetWidthPts = gangWidth * POINTS_PER_INCH;
+    const maxHeightPts = maxLengthInches * POINTS_PER_INCH;
 
-    // ✅ Track results
-    let remaining = quantity;
-    let sheets = [];
-    let totalCost = 0;
+    const logoTotalWidth = layoutWidth + spacingPts;
+    const logoTotalHeight = layoutHeight + spacingPts;
 
-    while (remaining > 0) {
-      const sheetPdf = await PDFDocument.create();
-      const sheetPage = sheetPdf.addPage([gangWidthPoints, maxLengthPoints]);
+    const logosPerRow = Math.floor(
+      (sheetWidthPts - safeMarginPts * 2 + spacingPts) / logoTotalWidth
+    );
+    if (logosPerRow < 1) throw new Error("Logo too wide for sheet");
+    log(`Can fit ${logosPerRow} logos per row`);
 
-      let xCursor = 9;  // small left padding
-      let yCursor = maxLengthPoints - scaledArtHeight - 9;
+    const rowsPerSheet = Math.floor(
+      (maxHeightPts - safeMarginPts * 2 + spacingPts) / logoTotalHeight
+    );
+    const logosPerSheet = logosPerRow * rowsPerSheet;
 
-      let fitsOnSheet = 0;
+    log(`Each sheet max ${rowsPerSheet} rows → ${logosPerSheet} logos per sheet`);
 
-      while (remaining > 0) {
-        // Place design
-        const [embeddedPage] = await sheetPdf.copyPages(uploadedPdf, [0]);
-        sheetPage.drawPage(embeddedPage, {
-          x: xCursor,
-          y: yCursor,
-          width: scaledArtWidth,
-          height: scaledArtHeight
+    const totalSheetsNeeded = Math.ceil(quantity / logosPerSheet);
+    log(`Total sheets needed: ${totalSheetsNeeded}`);
+
+    const drawLogo = (page, embeddedPage, x, y) => {
+      if (rotate) {
+        page.drawPage(embeddedPage, {
+          x: x + logoHeight,
+          y,
+          rotate: degrees(90)
         });
+      } else {
+        page.drawPage(embeddedPage, { x, y });
+      }
+    };
 
-        remaining--;
-        fitsOnSheet++;
+    let allSheetData = [];
+    let remaining = quantity;
 
-        // ✅ Move X cursor for next placement
-        xCursor += scaledArtWidth + SPACING_POINTS;
+    for (let sheetIndex = 0; sheetIndex < totalSheetsNeeded; sheetIndex++) {
+      const sheetDoc = await PDFDocument.create();
+      const [embeddedPage] = await sheetDoc.embedPdf(uploadedFile.buffer);
 
-        // ✅ If next art exceeds width, wrap to next row
-        if (xCursor + scaledArtWidth > gangWidthPoints) {
-          xCursor = 9;
-          yCursor -= (scaledArtHeight + SPACING_POINTS);
+      const logosOnThisSheet = Math.min(remaining, logosPerSheet);
+      const usedRows = Math.ceil(logosOnThisSheet / logosPerRow);
+      const usedHeightPts =
+        usedRows * logoTotalHeight + safeMarginPts * 2 - spacingPts;
+      const roundedHeightPts =
+        Math.ceil(usedHeightPts / POINTS_PER_INCH) * POINTS_PER_INCH;
+
+      const page = sheetDoc.addPage([sheetWidthPts, roundedHeightPts]);
+
+      let yCursor = roundedHeightPts - safeMarginPts - layoutHeight;
+      let drawn = 0;
+
+      while (drawn < logosOnThisSheet) {
+        let xCursor = safeMarginPts;
+        for (let c = 0; c < logosPerRow && drawn < logosOnThisSheet; c++) {
+          drawLogo(page, embeddedPage, xCursor, yCursor);
+          drawn++;
+          remaining--;
+          xCursor += logoTotalWidth;
         }
-
-        // ✅ If next art exceeds height, stop this sheet
-        if (yCursor < 0) break;
+        yCursor -= logoTotalHeight;
       }
 
-      // ✅ Calculate used height
-      const rowsUsed = Math.ceil(fitsOnSheet / Math.floor(gangWidthPoints / (scaledArtWidth + SPACING_POINTS)));
-      const usedHeightPoints = rowsUsed * (scaledArtHeight + SPACING_POINTS);
-      let usedInches = Math.ceil(usedHeightPoints / INCH_TO_POINTS);
+      const pdfBytes = await sheetDoc.save();
+      const finalHeightInch = Math.ceil(roundedHeightPts / POINTS_PER_INCH);
 
-      // ✅ Always round UP to nearest 12"
-      let roundedSheetLength = Math.ceil(usedInches / 12) * 12;
-      if (roundedSheetLength > maxLengthInches) roundedSheetLength = maxLengthInches;
+      // ✅ Always round UP to the next cost tier
+      const cost = calculateCost(gangWidth, finalHeightInch);
 
-      console.log(`→ Sheet fits ${fitsOnSheet}, used ${usedInches}" → rounded ${roundedSheetLength}"`);
-
-      // ✅ Resize the page
-      sheetPage.setSize(gangWidthPoints, roundedSheetLength * INCH_TO_POINTS);
-
-      // ✅ Get PDF bytes
-      const sheetBytes = await sheetPdf.save();
-
-      // ✅ Price
-      const cost = getCostForLength(roundedSheetLength);
-      totalCost += cost;
-
-      // ✅ Store result
-      sheets.push({
-        filename: `gangsheet_${gangWidthInches}x${roundedSheetLength}.pdf`,
-        cost,
-        pdfBase64: Buffer.from(sheetBytes).toString("base64")
+      const filename = `gangsheet_${gangWidth}x${finalHeightInch}.pdf`;
+      allSheetData.push({
+        filename,
+        buffer: Buffer.from(pdfBytes),
+        width: gangWidth,
+        height: finalHeightInch,
+        cost
       });
     }
 
+    const totalCost = allSheetData.reduce((sum, s) => sum + s.cost, 0);
+
     res.json({
-      sheets,
+      sheets: allSheetData.map(s => ({
+        filename: s.filename,
+        width: s.width,
+        height: s.height,
+        cost: s.cost,
+        pdfBase64: s.buffer.toString("base64")
+      })),
       totalCost
     });
 
   } catch (err) {
-    console.error("❌ ERROR:", err);
-    res.status(500).json({ error: "Failed to generate gang sheets" });
+    console.error("MERGE ERROR:", err);
+    res.status(500).send(`Server error: ${err.message}`);
   }
 });
 
-// ✅ Start server
 app.listen(PORT, () => {
-  console.log(`✅ Backend running on port ${PORT}`);
+  console.log(`Backend running on port ${PORT}`);
 });
