@@ -1,22 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>EZGangSheets</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .tab-button.active-tab {
-      background-color: #2563eb; /* Tailwind Blue-600 */
-      color: white;
-    }
-    .animate-fadeIn {
-      animation: fadeIn 0.4s ease-in-out;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
 
@@ -26,25 +13,22 @@
     <img src="EZGangSheetsLogo.png" alt="EZGangSheets Logo" class="mx-auto mb-6 w-64">
 
     <!-- ✅ Tab Navigation -->
-    <div class="flex justify-center space-x-4 mb-6">
-      <button id="generateTabBtn" class="tab-button active-tab px-4 py-2 border border-blue-600 text-blue-600 font-semibold rounded hover:bg-blue-50 transition">
-        Generate Gang Sheet
-      </button>
-      <button id="quoteTabBtn" class="tab-button px-4 py-2 border border-blue-600 text-blue-600 font-semibold rounded hover:bg-blue-50 transition">
-        Quote Estimator
-      </button>
+    <div class="flex space-x-4 mb-6">
+      <button id="tabGenerate" class="tab-button bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold">Generate Gang Sheet</button>
+      <button id="tabQuote" class="tab-button bg-white border border-blue-600 text-blue-600 px-4 py-2 rounded-lg font-semibold">Quote Estimator</button>
     </div>
 
-    <!-- ✅ Gang Sheet Generator Form -->
-    <div id="gangForm">
+    <!-- ✅ Gang Sheet Generator -->
+    <div id="generateTab">
       <div class="bg-white shadow-md rounded-lg p-6">
         <form id="uploadForm" class="space-y-4">
-          <!-- Drop Zone -->
+          <!-- Existing form content (upload zone, quantity, rotate, width, max length) -->
+          <!-- ... (unchanged from previous version) -->
           <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
             <div class="flex flex-col items-center justify-center space-y-2">
               <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M7 16a4 4 0 01.88-7.9A5 5 0 1119 11h1a3 3 0 010 6h-3m-4-4v6m0 0l-2-2m2 2l2-2" />
+                  d="M7 16a4 4 0 01.88-7.9A5 5 0 1119 11h1a3 3 0 010 6h-3m-4-4v6m0 0l-2-2m2 2l2-2"/>
               </svg>
               <p class="text-gray-500" id="dropZoneText">
                 <strong>Drag & drop your PDF here</strong><br>or click to browse
@@ -89,25 +73,26 @@
           </button>
         </form>
       </div>
+
       <div id="log" class="mt-6"></div>
     </div>
 
-    <!-- ✅ Quote Estimator Form -->
-    <div id="quoteForm" class="hidden">
+    <!-- ✅ Quote Estimator -->
+    <div id="quoteTab" class="hidden">
       <div class="bg-white shadow-md rounded-lg p-6 space-y-4">
         <div>
           <label class="block font-medium mb-1">Artwork Width (inches)</label>
-          <input type="number" id="quoteWidth" min="1" required class="block w-full border border-gray-300 rounded-lg p-2" />
+          <input type="number" id="artWidth" min="1" step="0.1" class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
         <div>
           <label class="block font-medium mb-1">Artwork Height (inches)</label>
-          <input type="number" id="quoteHeight" min="1" required class="block w-full border border-gray-300 rounded-lg p-2" />
+          <input type="number" id="artHeight" min="1" step="0.1" class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
         <div>
           <label class="block font-medium mb-1">Quantity</label>
-          <input type="number" id="quoteQuantity" min="1" required class="block w-full border border-gray-300 rounded-lg p-2" />
+          <input type="number" id="quoteQuantity" min="1" class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
         <div>
@@ -135,36 +120,90 @@
           Estimate Quote
         </button>
 
-        <div id="quoteResult" class="mt-4 text-center font-semibold text-gray-700"></div>
+        <div id="quoteResult" class="mt-4 text-center font-semibold text-blue-700"></div>
       </div>
     </div>
+
   </div>
 
-  <!-- ✅ Scripts -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
-  <script src="main.js"></script> <!-- Optional if you have a separate JS file -->
   <script>
-    // Tab toggle logic
-    const generateTabBtn = document.getElementById("generateTabBtn");
-    const quoteTabBtn = document.getElementById("quoteTabBtn");
-    const gangForm = document.getElementById("gangForm");
-    const quoteForm = document.getElementById("quoteForm");
+    // ✅ Tab Switching
+    const tabGenerate = document.getElementById("tabGenerate");
+    const tabQuote = document.getElementById("tabQuote");
+    const generateTab = document.getElementById("generateTab");
+    const quoteTab = document.getElementById("quoteTab");
 
-    generateTabBtn.addEventListener("click", () => {
-      gangForm.classList.remove("hidden");
-      quoteForm.classList.add("hidden");
-      generateTabBtn.classList.add("active-tab");
-      quoteTabBtn.classList.remove("active-tab");
+    tabGenerate.addEventListener("click", () => {
+      generateTab.classList.remove("hidden");
+      quoteTab.classList.add("hidden");
+      tabGenerate.classList.add("bg-blue-600", "text-white");
+      tabQuote.classList.remove("bg-blue-600", "text-white");
+      tabQuote.classList.add("bg-white", "text-blue-600");
     });
 
-    quoteTabBtn.addEventListener("click", () => {
-      quoteForm.classList.remove("hidden");
-      gangForm.classList.add("hidden");
-      quoteTabBtn.classList.add("active-tab");
-      generateTabBtn.classList.remove("active-tab");
+    tabQuote.addEventListener("click", () => {
+      quoteTab.classList.remove("hidden");
+      generateTab.classList.add("hidden");
+      tabQuote.classList.add("bg-blue-600", "text-white");
+      tabGenerate.classList.remove("bg-blue-600", "text-white");
+      tabGenerate.classList.add("bg-white", "text-blue-600");
     });
 
-    // Additional JS (thumbnail rendering, form handling) stays the same...
+    // ✅ Quote Estimator Logic
+    const estimateBtn = document.getElementById("estimateBtn");
+    const quoteResult = document.getElementById("quoteResult");
+
+    estimateBtn.addEventListener("click", () => {
+      const w = parseFloat(document.getElementById("artWidth").value);
+      const h = parseFloat(document.getElementById("artHeight").value);
+      const quantity = parseInt(document.getElementById("quoteQuantity").value, 10);
+      const rotate = document.getElementById("quoteRotate").value === "true";
+      const gangWidth = parseInt(document.getElementById("quoteGangWidth").value, 10);
+      const maxLength = parseInt(document.getElementById("quoteMaxLength").value, 10);
+
+      if (!w || !h || !quantity) {
+        quoteResult.textContent = "Please fill out all fields.";
+        return;
+      }
+
+      const POINTS_PER_INCH = 72;
+      const SAFE_MARGIN = 0.125;
+      const SPACING = 0.5;
+      const COST_TABLE = {
+        12: 5.28, 24: 10.56, 36: 15.84, 48: 21.12,
+        60: 26.40, 80: 35.20, 100: 44.00, 120: 49.28,
+        140: 56.32, 160: 61.60, 180: 68.64, 200: 75.68
+      };
+
+      let layoutW = rotate ? h : w;
+      let layoutH = rotate ? w : h;
+
+      const usableW = gangWidth - SAFE_MARGIN * 2 + SPACING;
+      const usableH = maxLength - SAFE_MARGIN * 2 + SPACING;
+
+      const logosPerRow = Math.floor(usableW / (layoutW + SPACING));
+      const rowsPerSheet = Math.floor(usableH / (layoutH + SPACING));
+      const logosPerSheet = logosPerRow * rowsPerSheet;
+
+      if (logosPerSheet < 1) {
+        quoteResult.innerHTML = "⚠️ Artwork too large for selected sheet size.";
+        return;
+      }
+
+      const sheetsNeeded = Math.ceil(quantity / logosPerSheet);
+      const usedRows = Math.ceil(quantity / logosPerRow);
+      const usedHeight = usedRows * (layoutH + SPACING) + SAFE_MARGIN * 2 - SPACING;
+      const roundedHeight = Math.ceil(usedHeight / 12) * 12;
+      const finalHeight = Math.min(roundedHeight, maxLength);
+
+      const cost = COST_TABLE[finalHeight] || COST_TABLE[Object.keys(COST_TABLE).find(k => k > finalHeight)] || 75.68;
+      const total = cost * sheetsNeeded;
+
+      quoteResult.innerHTML = `
+        🧮 Estimated: <strong>${sheetsNeeded}</strong> sheet(s) at <strong>${gangWidth}" x ${finalHeight}"</strong><br>
+        💰 Total Cost: <strong>$${total.toFixed(2)}</strong>
+      `;
+    });
   </script>
 </body>
 </html>
