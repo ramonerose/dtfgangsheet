@@ -12,272 +12,198 @@
     <!-- ✅ Logo -->
     <img src="EZGangSheetsLogo.png" alt="EZGangSheets Logo" class="mx-auto mb-6 w-64">
 
-    <!-- ✅ Form Card -->
-    <div class="bg-white shadow-md rounded-lg p-6">
-      <form id="uploadForm" class="space-y-4">
+    <!-- ✅ Tab Navigation -->
+    <div class="flex space-x-4 mb-6">
+      <button id="tabGenerate" class="tab-button bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold">Generate Gang Sheet</button>
+      <button id="tabQuote" class="tab-button bg-white border border-blue-600 text-blue-600 px-4 py-2 rounded-lg font-semibold">Quote Estimator</button>
+    </div>
 
-        <!-- ✅ Drag-and-Drop Zone with Cloud Icon -->
-        <div id="dropZone"
-          class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
-          <div class="flex flex-col items-center justify-center space-y-2">
-            <!-- Cloud Upload Icon -->
-            <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M7 16a4 4 0 01.88-7.9A5 5 0 1119 11h1a3 3 0 010 6h-3m-4-4v6m0 0l-2-2m2 2l2-2"/>
-            </svg>
-            <p class="text-gray-500" id="dropZoneText">
-              <strong>Drag & drop your PDF here</strong><br>or click to browse
-            </p>
+    <!-- ✅ Gang Sheet Generator -->
+    <div id="generateTab">
+      <div class="bg-white shadow-md rounded-lg p-6">
+        <form id="uploadForm" class="space-y-4">
+          <!-- Existing form content (upload zone, quantity, rotate, width, max length) -->
+          <!-- ... (unchanged from previous version) -->
+          <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
+            <div class="flex flex-col items-center justify-center space-y-2">
+              <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M7 16a4 4 0 01.88-7.9A5 5 0 1119 11h1a3 3 0 010 6h-3m-4-4v6m0 0l-2-2m2 2l2-2"/>
+              </svg>
+              <p class="text-gray-500" id="dropZoneText">
+                <strong>Drag & drop your PDF here</strong><br>or click to browse
+              </p>
+            </div>
+            <input type="file" id="file" class="hidden" accept="application/pdf" required />
           </div>
-          <input type="file" id="file" class="hidden" accept="application/pdf" required />
+
+          <div id="filePreview" class="mt-4 hidden">
+            <p id="fileName" class="text-green-700 font-medium mb-2"></p>
+            <canvas id="pdfThumbnail" class="border rounded-md shadow-sm"></canvas>
+          </div>
+
+          <div>
+            <label class="block font-medium mb-1">Quantity</label>
+            <input type="number" id="quantity" min="1" required class="block w-full border border-gray-300 rounded-lg p-2" />
+          </div>
+
+          <div>
+            <label class="block font-medium mb-1">Rotate 90°?</label>
+            <select id="rotate" class="block w-full border border-gray-300 rounded-lg p-2">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-medium mb-1">Gang Sheet Width</label>
+            <select id="gangWidth" class="block w-full border border-gray-300 rounded-lg p-2">
+              <option value="22" selected>22 inches</option>
+              <option value="30">30 inches</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-medium mb-1">Max Sheet Length (inches)</label>
+            <input type="number" id="maxLength" min="12" value="200" class="block w-full border border-gray-300 rounded-lg p-2" />
+          </div>
+
+          <button id="generateBtn" type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">
+            Generate Gang Sheet
+          </button>
+        </form>
+      </div>
+
+      <div id="log" class="mt-6"></div>
+    </div>
+
+    <!-- ✅ Quote Estimator -->
+    <div id="quoteTab" class="hidden">
+      <div class="bg-white shadow-md rounded-lg p-6 space-y-4">
+        <div>
+          <label class="block font-medium mb-1">Artwork Width (inches)</label>
+          <input type="number" id="artWidth" min="1" step="0.1" class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
-        <!-- ✅ Selected File + Thumbnail Preview -->
-        <div id="filePreview" class="mt-4 hidden">
-          <p id="fileName" class="text-green-700 font-medium mb-2"></p>
-          <canvas id="pdfThumbnail" class="border rounded-md shadow-sm"></canvas>
+        <div>
+          <label class="block font-medium mb-1">Artwork Height (inches)</label>
+          <input type="number" id="artHeight" min="1" step="0.1" class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
-        <!-- ✅ Quantity -->
         <div>
           <label class="block font-medium mb-1">Quantity</label>
-          <input type="number" id="quantity" min="1" required 
-            class="block w-full border border-gray-300 rounded-lg p-2" />
+          <input type="number" id="quoteQuantity" min="1" class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
-        <!-- ✅ Rotate? -->
         <div>
           <label class="block font-medium mb-1">Rotate 90°?</label>
-          <select id="rotate" class="block w-full border border-gray-300 rounded-lg p-2">
+          <select id="quoteRotate" class="block w-full border border-gray-300 rounded-lg p-2">
             <option value="false">No</option>
             <option value="true">Yes</option>
           </select>
         </div>
 
-        <!-- ✅ Width -->
         <div>
           <label class="block font-medium mb-1">Gang Sheet Width</label>
-          <select id="gangWidth" class="block w-full border border-gray-300 rounded-lg p-2">
+          <select id="quoteGangWidth" class="block w-full border border-gray-300 rounded-lg p-2">
             <option value="22" selected>22 inches</option>
             <option value="30">30 inches</option>
           </select>
         </div>
 
-        <!-- ✅ Max Length -->
         <div>
           <label class="block font-medium mb-1">Max Sheet Length (inches)</label>
-          <input type="number" id="maxLength" min="12" value="200" 
-            class="block w-full border border-gray-300 rounded-lg p-2" />
+          <input type="number" id="quoteMaxLength" min="12" value="200" class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
-        <button id="generateBtn" type="submit" 
-          class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">
-          Generate Gang Sheet
+        <button id="estimateBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+          Estimate Quote
         </button>
-      </form>
-    </div>
 
-    <!-- ✅ Results Section -->
-    <div id="log" class="mt-6"></div>
+        <div id="quoteResult" class="mt-4 text-center font-semibold text-blue-700"></div>
+      </div>
+    </div>
 
   </div>
 
-  <!-- ✅ PDF.js (for thumbnail rendering) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
-
   <script>
-    const dropZone = document.getElementById("dropZone");
-    const dropZoneText = document.getElementById("dropZoneText");
-    const fileInput = document.getElementById("file");
-    const filePreview = document.getElementById("filePreview");
-    const fileNameDisplay = document.getElementById("fileName");
-    const pdfThumbnailCanvas = document.getElementById("pdfThumbnail");
+    // ✅ Tab Switching
+    const tabGenerate = document.getElementById("tabGenerate");
+    const tabQuote = document.getElementById("tabQuote");
+    const generateTab = document.getElementById("generateTab");
+    const quoteTab = document.getElementById("quoteTab");
 
-    // ✅ Clicking drop zone triggers file picker
-    dropZone.addEventListener("click", () => fileInput.click());
-
-    // ✅ When file selected manually
-    fileInput.addEventListener("change", () => handleFile(fileInput.files));
-
-    // ✅ Drag over highlights the zone
-    dropZone.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      dropZone.classList.add("border-blue-500", "bg-blue-50");
+    tabGenerate.addEventListener("click", () => {
+      generateTab.classList.remove("hidden");
+      quoteTab.classList.add("hidden");
+      tabGenerate.classList.add("bg-blue-600", "text-white");
+      tabQuote.classList.remove("bg-blue-600", "text-white");
+      tabQuote.classList.add("bg-white", "text-blue-600");
     });
 
-    // ✅ Drag leave removes highlight
-    dropZone.addEventListener("dragleave", () => {
-      dropZone.classList.remove("border-blue-500", "bg-blue-50");
+    tabQuote.addEventListener("click", () => {
+      quoteTab.classList.remove("hidden");
+      generateTab.classList.add("hidden");
+      tabQuote.classList.add("bg-blue-600", "text-white");
+      tabGenerate.classList.remove("bg-blue-600", "text-white");
+      tabGenerate.classList.add("bg-white", "text-blue-600");
     });
 
-    // ✅ Dropping file assigns it
-    dropZone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      dropZone.classList.remove("border-blue-500", "bg-blue-50");
+    // ✅ Quote Estimator Logic
+    const estimateBtn = document.getElementById("estimateBtn");
+    const quoteResult = document.getElementById("quoteResult");
 
-      if (e.dataTransfer.files.length > 0) {
-        fileInput.files = e.dataTransfer.files; // Assign file
-        handleFile(e.dataTransfer.files);
-      }
-    });
+    estimateBtn.addEventListener("click", () => {
+      const w = parseFloat(document.getElementById("artWidth").value);
+      const h = parseFloat(document.getElementById("artHeight").value);
+      const quantity = parseInt(document.getElementById("quoteQuantity").value, 10);
+      const rotate = document.getElementById("quoteRotate").value === "true";
+      const gangWidth = parseInt(document.getElementById("quoteGangWidth").value, 10);
+      const maxLength = parseInt(document.getElementById("quoteMaxLength").value, 10);
 
-    // ✅ Handle showing file name + thumbnail
-    function handleFile(files) {
-      if (!files || files.length === 0) return;
-
-      const file = files[0];
-      if (!file.name.toLowerCase().endsWith(".pdf")) {
-        alert("Please select a PDF file.");
+      if (!w || !h || !quantity) {
+        quoteResult.textContent = "Please fill out all fields.";
         return;
       }
 
-      fileNameDisplay.textContent = `✅ Selected: ${file.name}`;
-      filePreview.classList.remove("hidden");
-
-      // ✅ Show thumbnail of first page using PDF.js
-      const reader = new FileReader();
-      reader.onload = async function(e) {
-        const typedarray = new Uint8Array(e.target.result);
-
-        const pdf = await pdfjsLib.getDocument(typedarray).promise;
-        const page = await pdf.getPage(1);
-
-        const viewport = page.getViewport({ scale: 0.3 }); // Small preview
-        const context = pdfThumbnailCanvas.getContext("2d");
-
-        pdfThumbnailCanvas.width = viewport.width;
-        pdfThumbnailCanvas.height = viewport.height;
-
-        const renderContext = {
-          canvasContext: context,
-          viewport: viewport,
-        };
-        await page.render(renderContext).promise;
+      const POINTS_PER_INCH = 72;
+      const SAFE_MARGIN = 0.125;
+      const SPACING = 0.5;
+      const COST_TABLE = {
+        12: 5.28, 24: 10.56, 36: 15.84, 48: 21.12,
+        60: 26.40, 80: 35.20, 100: 44.00, 120: 49.28,
+        140: 56.32, 160: 61.60, 180: 68.64, 200: 75.68
       };
-      reader.readAsArrayBuffer(file);
-    }
 
-    // ✅ Existing form submission stays same
-    const form = document.getElementById("uploadForm");
-    const logDiv = document.getElementById("log");
-    const generateBtn = document.getElementById("generateBtn");
+      let layoutW = rotate ? h : w;
+      let layoutH = rotate ? w : h;
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
+      const usableW = gangWidth - SAFE_MARGIN * 2 + SPACING;
+      const usableH = maxLength - SAFE_MARGIN * 2 + SPACING;
 
-      if (!fileInput.files.length) {
-        alert("Please select a PDF file.");
+      const logosPerRow = Math.floor(usableW / (layoutW + SPACING));
+      const rowsPerSheet = Math.floor(usableH / (layoutH + SPACING));
+      const logosPerSheet = logosPerRow * rowsPerSheet;
+
+      if (logosPerSheet < 1) {
+        quoteResult.innerHTML = "⚠️ Artwork too large for selected sheet size.";
         return;
       }
 
-      generateBtn.disabled = true;
-      generateBtn.classList.add("opacity-70", "cursor-not-allowed");
-      generateBtn.textContent = "Working...";
+      const sheetsNeeded = Math.ceil(quantity / logosPerSheet);
+      const usedRows = Math.ceil(quantity / logosPerRow);
+      const usedHeight = usedRows * (layoutH + SPACING) + SAFE_MARGIN * 2 - SPACING;
+      const roundedHeight = Math.ceil(usedHeight / 12) * 12;
+      const finalHeight = Math.min(roundedHeight, maxLength);
 
-      logDiv.innerHTML = `
-        <div class="flex flex-col items-center justify-center text-gray-700">
-          <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-3"></div>
-          <p class="font-semibold text-sm text-gray-600">Generating your gang sheets...</p>
-        </div>
+      const cost = COST_TABLE[finalHeight] || COST_TABLE[Object.keys(COST_TABLE).find(k => k > finalHeight)] || 75.68;
+      const total = cost * sheetsNeeded;
+
+      quoteResult.innerHTML = `
+        🧮 Estimated: <strong>${sheetsNeeded}</strong> sheet(s) at <strong>${gangWidth}" x ${finalHeight}"</strong><br>
+        💰 Total Cost: <strong>$${total.toFixed(2)}</strong>
       `;
-
-      const file = fileInput.files[0];
-      const quantity = document.getElementById("quantity").value;
-      const rotate = document.getElementById("rotate").value;
-      const gangWidth = document.getElementById("gangWidth").value;
-      const maxLength = document.getElementById("maxLength").value;
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("quantity", quantity);
-      formData.append("rotate", rotate);
-      formData.append("gangWidth", gangWidth);
-      formData.append("maxLength", maxLength);
-
-      const response = await fetch("/merge", {
-        method: "POST",
-        body: formData
-      });
-
-      if (!response.ok) {
-        logDiv.innerHTML = `<div class="text-center text-red-600 font-semibold">❌ Server error! Please try again.</div>`;
-        generateBtn.disabled = false;
-        generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
-        generateBtn.textContent = "Generate Gang Sheet";
-        return;
-      }
-
-      const data = await response.json();
-
-      let html = `
-        <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
-          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <p class="text-green-700 font-semibold">Sheets ready!</p>
-        </div>
-
-        <div class="bg-white shadow-md rounded-lg p-4 animate-fadeIn">
-          <h3 class="text-lg font-bold mb-3">
-            ✅ ${data.sheets.length} sheet(s) generated
-          </h3>
-          <ul class="space-y-2">
-      `;
-
-      data.sheets.forEach((s) => {
-        html += `
-          <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
-            <div>
-              📄 <span class="font-medium">${s.filename}</span>
-              <span class="text-green-600 font-semibold ml-2">💰 $${s.cost.toFixed(2)}</span>
-            </div>
-            <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
-               ⬇️ Download
-            </a>
-          </li>
-        `;
-      });
-
-      html += `</ul>
-        <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
-          <span class="block text-sm text-gray-600">Summary</span>
-          <span class="text-xl font-bold text-green-700">
-            Total Cost: $${data.totalCost.toFixed(2)}
-          </span>
-        </div>
-        <button id="downloadAll" 
-          class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
-          ⬇️ Download All
-        </button>
-        </div>
-      `;
-
-      logDiv.innerHTML = html;
-
-      generateBtn.disabled = false;
-      generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
-      generateBtn.textContent = "Generate Gang Sheet";
-
-      document.getElementById("downloadAll").addEventListener("click", () => {
-        data.sheets.forEach((s) => {
-          const a = document.createElement("a");
-          a.href = `data:application/pdf;base64,${s.pdfBase64}`;
-          a.download = s.filename;
-          a.click();
-        });
-      });
     });
   </script>
-
-  <style>
-    .animate-fadeIn {
-      animation: fadeIn 0.4s ease-in-out;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
-
 </body>
 </html>
