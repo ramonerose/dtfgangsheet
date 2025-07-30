@@ -48,14 +48,14 @@
         <!-- ✅ Quantity (hidden when multiple files) -->
         <div id="singleQuantitySection">
           <label class="block font-medium mb-1">Quantity</label>
-          <input type="number" id="quantity" min="1" required 
+          <input type="number" id="quantity" name="quantity" min="1" required 
             class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
         <!-- ✅ Rotate? -->
         <div>
           <label class="block font-medium mb-1">Rotate 90°?</label>
-          <select id="rotate" class="block w-full border border-gray-300 rounded-lg p-2">
+          <select id="rotate" name="rotate" class="block w-full border border-gray-300 rounded-lg p-2">
             <option value="false">No</option>
             <option value="true">Yes</option>
           </select>
@@ -64,7 +64,7 @@
         <!-- ✅ Width -->
         <div>
           <label class="block font-medium mb-1">Gang Sheet Width</label>
-          <select id="gangWidth" class="block w-full border border-gray-300 rounded-lg p-2">
+          <select id="gangWidth" name="gangWidth" class="block w-full border border-gray-300 rounded-lg p-2">
             <option value="22" selected>22 inches</option>
             <option value="30">30 inches</option>
           </select>
@@ -73,7 +73,7 @@
         <!-- ✅ Max Length -->
         <div>
           <label class="block font-medium mb-1">Max Sheet Length (inches)</label>
-          <input type="number" id="maxLength" min="12" value="200" 
+          <input type="number" id="maxLength" name="maxLength" min="12" value="200" 
             class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
@@ -191,13 +191,14 @@
         
         fileItem.innerHTML = `
           <div class="flex items-center space-x-3">
-            <span class="text-blue-600"></span>
+            <span class="text-blue-600">��</span>
             <span class="font-medium">${file.name}</span>
             <span class="text-gray-500 text-sm">(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
           </div>
           <div class="flex items-center space-x-2">
             <input type="number" min="1" placeholder="Qty" value="${preservedQuantity}"
               class="border border-gray-300 rounded px-2 py-1 w-20 text-center" 
+              name="quantity_${index}"
               data-file-name="${file.name}" onchange="updateQuantity('${file.name}', this.value)" required />
             <button type="button" class="text-red-600 hover:text-red-800 px-2 py-1" 
               onclick="removeFile(${index})">❌</button>
@@ -362,7 +363,7 @@
             <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
               <div>
                 📄 <span class="font-medium">${s.filename}</span>
-                <span class="text-green-600 font-semibold ml-2"> $${s.cost.toFixed(2)}</span>
+                <span class="text-green-600 font-semibold ml-2">�� $${s.cost.toFixed(2)}</span>
               </div>
               <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
                  ⬇️ Download
