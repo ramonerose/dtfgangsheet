@@ -9,45 +9,40 @@
 
   <div class="max-w-2xl mx-auto p-6">
 
-    <!-- ✅ Logo - Fixed to prevent oversized display -->
-    <div class="text-center mb-6">
-      <h1 class="text-3xl font-bold text-blue-600">EZGangSheets</h1>
-      <p class="text-gray-600 mt-2">DTF Gang Sheet Generator</p>
-    </div>
+    <!-- ✅ Logo -->
+    <img src="EZGangSheetsLogo.png" alt="EZGangSheets Logo" class="mx-auto mb-6 w-64">
 
     <!-- ✅ Form Card -->
     <div class="bg-white shadow-md rounded-lg p-6">
       <form id="uploadForm" class="space-y-4">
 
-        <!-- ✅ Enhanced Drag-and-Drop Zone -->
+        <!-- ✅ Drag-and-Drop Zone with Cloud Icon -->
         <div id="dropZone"
           class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
           <div class="flex flex-col items-center justify-center space-y-2">
-            <!-- Cloud Upload Icon - Fixed size -->
+            <!-- Cloud Upload Icon -->
             <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M7 16a4 4 0 01.88-7.9A5 5 0 1119 11h1a3 3 0 010 6h-3m-4-4v6m0 0l-2-2m2 2l2-2"/>
             </svg>
             <p class="text-gray-500" id="dropZoneText">
-              <strong>Drag & drop your file here</strong><br>
-              <span class="text-sm">Supports PDF, PNG, JPEG files (max 10MB)</span>
+              <strong>Drag & drop your PDF here</strong><br>or click to browse
             </p>
           </div>
-          <input type="file" id="file" class="hidden" accept=".pdf,.png,.jpg,.jpeg" required />
+          <input type="file" id="file" class="hidden" accept="application/pdf" required />
         </div>
 
-        <!-- ✅ Selected File + Preview -->
+        <!-- ✅ Selected File + Thumbnail Preview -->
         <div id="filePreview" class="mt-4 hidden">
           <p id="fileName" class="text-green-700 font-medium mb-2"></p>
-          <div id="filePreviewContent" class="border rounded-md shadow-sm p-2 bg-gray-50"></div>
+          <canvas id="pdfThumbnail" class="border rounded-md shadow-sm"></canvas>
         </div>
 
         <!-- ✅ Quantity -->
         <div>
           <label class="block font-medium mb-1">Quantity</label>
-          <input type="number" id="quantity" min="1" max="10000" required 
-            class="block w-full border border-gray-300 rounded-lg p-2" 
-            placeholder="Enter quantity (1-10000)" />
+          <input type="number" id="quantity" min="1" required 
+            class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
         <!-- ✅ Rotate? -->
@@ -71,7 +66,7 @@
         <!-- ✅ Max Length -->
         <div>
           <label class="block font-medium mb-1">Max Sheet Length (inches)</label>
-          <input type="number" id="maxLength" min="12" max="200" value="200" 
+          <input type="number" id="maxLength" min="12" value="200" 
             class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
@@ -96,7 +91,7 @@
     const fileInput = document.getElementById("file");
     const filePreview = document.getElementById("filePreview");
     const fileNameDisplay = document.getElementById("fileName");
-    const filePreviewContent = document.getElementById("filePreviewContent");
+    const pdfThumbnailCanvas = document.getElementById("pdfThumbnail");
 
     // ✅ Clicking drop zone triggers file picker
     dropZone.addEventListener("click", () => fileInput.click());
@@ -121,95 +116,48 @@
       dropZone.classList.remove("border-blue-500", "bg-blue-50");
 
       if (e.dataTransfer.files.length > 0) {
-        fileInput.files = e.dataTransfer.files;
+        fileInput.files = e.dataTransfer.files; // Assign file
         handleFile(e.dataTransfer.files);
       }
     });
 
-    // ✅ Enhanced file handling with PNG support
+    // ✅ Handle showing file name + thumbnail
     function handleFile(files) {
       if (!files || files.length === 0) return;
 
       const file = files[0];
-      const fileType = file.type.toLowerCase();
-      const fileName = file.name.toLowerCase();
-      
-      // Check file type
-      const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-      const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
-      
-      const isValidType = allowedTypes.includes(fileType) || 
-                         allowedExtensions.some(ext => fileName.endsWith(ext));
-      
-      if (!isValidType) {
-        alert("Please select a PDF, PNG, or JPEG file.");
+      if (!file.name.toLowerCase().endsWith(".pdf")) {
+        alert("Please select a PDF file.");
         return;
       }
 
-      // Check file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        alert("File size must be less than 10MB.");
-        return;
-      }
-
-      fileNameDisplay.textContent = `✅ Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+      fileNameDisplay.textContent = `✅ Selected: ${file.name}`;
       filePreview.classList.remove("hidden");
 
-      // Show preview based on file type
-      if (fileType === 'application/pdf') {
-        showPDFPreview(file);
-      } else {
-        showImagePreview(file);
-      }
-    }
-
-    // ✅ Show PDF thumbnail
-    function showPDFPreview(file) {
+      // ✅ Show thumbnail of first page using PDF.js
       const reader = new FileReader();
       reader.onload = async function(e) {
-        try {
-          const typedarray = new Uint8Array(e.target.result);
-          const pdf = await pdfjsLib.getDocument(typedarray).promise;
-          const page = await pdf.getPage(1);
+        const typedarray = new Uint8Array(e.target.result);
 
-          const viewport = page.getViewport({ scale: 0.3 });
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext("2d");
+        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+        const page = await pdf.getPage(1);
 
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
+        const viewport = page.getViewport({ scale: 0.3 }); // Small preview
+        const context = pdfThumbnailCanvas.getContext("2d");
 
-          const renderContext = {
-            canvasContext: context,
-            viewport: viewport,
-          };
-          await page.render(renderContext).promise;
-          
-          filePreviewContent.innerHTML = '';
-          filePreviewContent.appendChild(canvas);
-        } catch (error) {
-          filePreviewContent.innerHTML = '<p class="text-gray-500">PDF preview not available</p>';
-        }
+        pdfThumbnailCanvas.width = viewport.width;
+        pdfThumbnailCanvas.height = viewport.height;
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        };
+        await page.render(renderContext).promise;
       };
       reader.readAsArrayBuffer(file);
     }
 
-    // ✅ Show image preview
-    function showImagePreview(file) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const img = document.createElement('img');
-        img.src = e.target.result;
-        img.className = 'max-w-full h-auto max-h-32 mx-auto';
-        img.alt = 'File preview';
-        
-        filePreviewContent.innerHTML = '';
-        filePreviewContent.appendChild(img);
-      };
-      reader.readAsDataURL(file);
-    }
-
-    // ✅ Enhanced form submission with better error handling
+    // ✅ Existing form submission stays same
     const form = document.getElementById("uploadForm");
     const logDiv = document.getElementById("log");
     const generateBtn = document.getElementById("generateBtn");
@@ -218,13 +166,7 @@
       e.preventDefault();
 
       if (!fileInput.files.length) {
-        alert("Please select a file.");
-        return;
-      }
-
-      const quantity = parseInt(document.getElementById("quantity").value);
-      if (!quantity || quantity < 1 || quantity > 10000) {
-        alert("Please enter a valid quantity between 1 and 10000.");
+        alert("Please select a PDF file.");
         return;
       }
 
@@ -236,11 +178,11 @@
         <div class="flex flex-col items-center justify-center text-gray-700">
           <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-3"></div>
           <p class="font-semibold text-sm text-gray-600">Generating your gang sheets...</p>
-          <p class="text-xs text-gray-500 mt-1">This may take a moment for large files</p>
         </div>
       `;
 
       const file = fileInput.files[0];
+      const quantity = document.getElementById("quantity").value;
       const rotate = document.getElementById("rotate").value;
       const gangWidth = document.getElementById("gangWidth").value;
       const maxLength = document.getElementById("maxLength").value;
@@ -252,87 +194,78 @@
       formData.append("gangWidth", gangWidth);
       formData.append("maxLength", maxLength);
 
-      try {
-        const response = await fetch("/merge", {
-          method: "POST",
-          body: formData
-        });
+      const response = await fetch("/merge", {
+        method: "POST",
+        body: formData
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || `Server error: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        let html = `
-          <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
-            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-            </svg>
-            <p class="text-green-700 font-semibold">Sheets ready!</p>
-          </div>
-
-          <div class="bg-white shadow-md rounded-lg p-4 animate-fadeIn">
-            <h3 class="text-lg font-bold mb-3">
-              ✅ ${data.sheets.length} sheet(s) generated
-            </h3>
-            <ul class="space-y-2">
-        `;
-
-        data.sheets.forEach((s, index) => {
-          html += `
-            <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
-              <div>
-                📄 <span class="font-medium">${s.filename}</span>
-                <span class="text-green-600 font-semibold ml-2">�� $${s.cost.toFixed(2)}</span>
-                <span class="text-gray-500 text-sm ml-2">(${s.width}" × ${s.height}")</span>
-              </div>
-              <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" 
-                 class="text-blue-600 hover:underline font-medium">
-                 ⬇️ Download
-              </a>
-            </li>
-          `;
-        });
-
-        html += `</ul>
-          <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
-            <span class="block text-sm text-gray-600">Total Cost</span>
-            <span class="text-xl font-bold text-green-700">
-              $${data.totalCost.toFixed(2)}
-            </span>
-          </div>
-          <button id="downloadAll" 
-            class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
-            ⬇️ Download All Sheets
-          </button>
-          </div>
-        `;
-
-        logDiv.innerHTML = html;
-
-        // Add download all functionality
-        document.getElementById("downloadAll").addEventListener("click", () => {
-          data.sheets.forEach((s) => {
-            const a = document.createElement("a");
-            a.href = `data:application/pdf;base64,${s.pdfBase64}`;
-            a.download = s.filename;
-            a.click();
-          });
-        });
-
-      } catch (error) {
-        logDiv.innerHTML = `
-          <div class="text-center text-red-600 font-semibold p-4 bg-red-50 border border-red-200 rounded-lg">
-            ❌ Error: ${error.message}
-          </div>
-        `;
-      } finally {
+      if (!response.ok) {
+        logDiv.innerHTML = `<div class="text-center text-red-600 font-semibold">❌ Server error! Please try again.</div>`;
         generateBtn.disabled = false;
         generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
         generateBtn.textContent = "Generate Gang Sheet";
+        return;
       }
+
+      const data = await response.json();
+
+      let html = `
+        <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
+          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <p class="text-green-700 font-semibold">Sheets ready!</p>
+        </div>
+
+        <div class="bg-white shadow-md rounded-lg p-4 animate-fadeIn">
+          <h3 class="text-lg font-bold mb-3">
+            ✅ ${data.sheets.length} sheet(s) generated
+          </h3>
+          <ul class="space-y-2">
+      `;
+
+      data.sheets.forEach((s) => {
+        html += `
+          <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
+            <div>
+              📄 <span class="font-medium">${s.filename}</span>
+              <span class="text-green-600 font-semibold ml-2">💰 $${s.cost.toFixed(2)}</span>
+            </div>
+            <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
+               ⬇️ Download
+            </a>
+          </li>
+        `;
+      });
+
+      html += `</ul>
+        <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
+          <span class="block text-sm text-gray-600">Summary</span>
+          <span class="text-xl font-bold text-green-700">
+            Total Cost: $${data.totalCost.toFixed(2)}
+          </span>
+        </div>
+        <button id="downloadAll" 
+          class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+          ⬇️ Download All
+        </button>
+        </div>
+      `;
+
+      logDiv.innerHTML = html;
+
+      generateBtn.disabled = false;
+      generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
+      generateBtn.textContent = "Generate Gang Sheet";
+
+      document.getElementById("downloadAll").addEventListener("click", () => {
+        data.sheets.forEach((s) => {
+          const a = document.createElement("a");
+          a.href = `data:application/pdf;base64,${s.pdfBase64}`;
+          a.download = s.filename;
+          a.click();
+        });
+      });
     });
   </script>
 
