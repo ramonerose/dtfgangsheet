@@ -48,7 +48,7 @@
         <!-- ✅ Quantity (hidden when multiple files) -->
         <div id="singleQuantitySection">
           <label class="block font-medium mb-1">Quantity</label>
-          <input type="number" id="quantity" name="quantity" min="1" required 
+          <input type="number" id="quantity" name="quantity" min="1" 
             class="block w-full border border-gray-300 rounded-lg p-2" />
         </div>
 
@@ -102,6 +102,7 @@
     const fileList = document.getElementById("fileList");
     const fileItems = document.getElementById("fileItems");
     const singleQuantitySection = document.getElementById("singleQuantitySection");
+    const quantityInput = document.getElementById("quantity");
 
     // Store all selected files with their quantities
     let allSelectedFiles = [];
@@ -170,6 +171,8 @@
       if (allSelectedFiles.length === 0) {
         fileList.classList.add("hidden");
         singleQuantitySection.classList.remove("hidden");
+        // Remove required from quantity input when no files
+        quantityInput.removeAttribute("required");
         dropZoneText.innerHTML = `
           <strong>Drag & drop your files here</strong><br>
           <span class="text-sm">Supports PDF files (max 10 files)</span>
@@ -179,6 +182,8 @@
 
       fileList.classList.remove("hidden");
       singleQuantitySection.classList.add("hidden");
+      // Remove required from quantity input when multiple files
+      quantityInput.removeAttribute("required");
       fileItems.innerHTML = "";
 
       // Create file items
@@ -191,7 +196,7 @@
         
         fileItem.innerHTML = `
           <div class="flex items-center space-x-3">
-            <span class="text-blue-600">��</span>
+            <span class="text-blue-600"></span>
             <span class="font-medium">${file.name}</span>
             <span class="text-gray-500 text-sm">(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
           </div>
@@ -363,7 +368,7 @@
             <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
               <div>
                 📄 <span class="font-medium">${s.filename}</span>
-                <span class="text-green-600 font-semibold ml-2">�� $${s.cost.toFixed(2)}</span>
+                <span class="text-green-600 font-semibold ml-2"> $${s.cost.toFixed(2)}</span>
               </div>
               <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
                  ⬇️ Download
