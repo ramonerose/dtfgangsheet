@@ -79,7 +79,7 @@
 
         <button id="generateBtn" type="submit" 
           class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">
-          Generate Gang Sheet
+          Generate All Gang Sheets
         </button>
       </form>
     </div>
@@ -276,7 +276,7 @@
       reader.readAsArrayBuffer(file);
     }
 
-    // ✅ FIXED: Enhanced form submission for multiple files
+    // ✅ ENHANCED: Process all files
     const form = document.getElementById("uploadForm");
     const logDiv = document.getElementById("log");
     const generateBtn = document.getElementById("generateBtn");
@@ -303,12 +303,12 @@
 
       generateBtn.disabled = true;
       generateBtn.classList.add("opacity-70", "cursor-not-allowed");
-      generateBtn.textContent = "Working...";
+      generateBtn.textContent = "Processing...";
 
       logDiv.innerHTML = `
         <div class="flex flex-col items-center justify-center text-gray-700">
           <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-3"></div>
-          <p class="font-semibold text-sm text-gray-600">Generating your gang sheets...</p>
+          <p class="font-semibold text-sm text-gray-600">Processing ${allSelectedFiles.length} files...</p>
         </div>
       `;
 
@@ -316,59 +316,78 @@
       const gangWidth = document.getElementById("gangWidth").value;
       const maxLength = document.getElementById("maxLength").value;
 
-      console.log("Processing first file..."); // Debug log
+      let allResults = [];
+      let totalCost = 0;
 
       try {
-        // For now, process the first file to test the functionality
-        const firstFile = allSelectedFiles[0];
-        const firstQuantity = fileQuantities[firstFile.name];
+        // Process all files
+        for (let i = 0; i < allSelectedFiles.length; i++) {
+          const file = allSelectedFiles[i];
+          const quantity = fileQuantities[file.name];
 
-        console.log("First file:", firstFile.name, "Quantity:", firstQuantity); // Debug log
+          console.log(`Processing file ${i + 1}/${allSelectedFiles.length}: ${file.name}`); // Debug log
 
-        const formData = new FormData();
-        formData.append("file", firstFile);
-        formData.append("quantity", firstQuantity);
-        formData.append("rotate", rotate);
-        formData.append("gangWidth", gangWidth);
-        formData.append("maxLength", maxLength);
+          // Update progress
+          logDiv.innerHTML = `
+            <div class="flex flex-col items-center justify-center text-gray-700">
+              <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-3"></div>
+              <p class="font-semibold text-sm text-gray-600">Processing file ${i + 1} of ${allSelectedFiles.length}</p>
+              <p class="text-xs text-gray-500 mt-1">${file.name}</p>
+            </div>
+          `;
 
-        console.log("Sending request to server..."); // Debug log
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("quantity", quantity);
+          formData.append("rotate", rotate);
+          formData.append("gangWidth", gangWidth);
+          formData.append("maxLength", maxLength);
 
-        const response = await fetch("/merge", {
-          method: "POST",
-          body: formData
-        });
+          const response = await fetch("/merge", {
+            method: "POST",
+            body: formData
+          });
 
-        console.log("Response received:", response.status); // Debug log
+          if (!response.ok) {
+            throw new Error(`Server error processing ${file.name}: ${response.status}`);
+          }
 
-        if (!response.ok) {
-          throw new Error(`Server error: ${response.status}`);
+          const data = await response.json();
+          
+          // Add file name to each sheet result
+          data.sheets.forEach(sheet => {
+            sheet.originalFile = file.name;
+          });
+          
+          allResults = allResults.concat(data.sheets);
+          totalCost += data.totalCost;
         }
 
-        const data = await response.json();
-        console.log("Data received:", data); // Debug log
+        console.log("All files processed successfully"); // Debug log
 
+        // Display results
         let html = `
           <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
             <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
-            <p class="text-green-700 font-semibold">Sheets ready!</p>
+            <p class="text-green-700 font-semibold">All sheets ready!</p>
           </div>
 
           <div class="bg-white shadow-md rounded-lg p-4 animate-fadeIn">
             <h3 class="text-lg font-bold mb-3">
-              ✅ ${data.sheets.length} sheet(s) generated for ${firstFile.name}
+              ✅ ${allResults.length} total sheet(s) generated for ${allSelectedFiles.length} files
             </h3>
             <ul class="space-y-2">
         `;
 
-        data.sheets.forEach((s) => {
+        allResults.forEach((s) => {
           html += `
             <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
               <div>
                 📄 <span class="font-medium">${s.filename}</span>
                 <span class="text-green-600 font-semibold ml-2"> $${s.cost.toFixed(2)}</span>
+                <span class="text-gray-500 text-sm ml-2">(${s.originalFile})</span>
               </div>
               <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
                  ⬇️ Download
@@ -379,14 +398,14 @@
 
         html += `</ul>
           <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
-            <span class="block text-sm text-gray-600">Summary</span>
+            <span class="block text-sm text-gray-600">Total Summary</span>
             <span class="text-xl font-bold text-green-700">
-              Total Cost: $${data.totalCost.toFixed(2)}
+              Total Cost: $${totalCost.toFixed(2)}
             </span>
           </div>
           <button id="downloadAll" 
             class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
-            ⬇️ Download All
+            ⬇️ Download All Sheets
           </button>
           </div>
         `;
@@ -395,10 +414,10 @@
 
         generateBtn.disabled = false;
         generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
-        generateBtn.textContent = "Generate Gang Sheet";
+        generateBtn.textContent = "Generate All Gang Sheets";
 
         document.getElementById("downloadAll").addEventListener("click", () => {
-          data.sheets.forEach((s) => {
+          allResults.forEach((s) => {
             const a = document.createElement("a");
             a.href = `data:application/pdf;base64,${s.pdfBase64}`;
             a.download = s.filename;
@@ -415,7 +434,7 @@
         `;
         generateBtn.disabled = false;
         generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
-        generateBtn.textContent = "Generate Gang Sheet";
+        generateBtn.textContent = "Generate All Gang Sheets";
       }
     });
   </script>
