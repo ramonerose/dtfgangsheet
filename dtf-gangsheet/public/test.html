@@ -191,7 +191,7 @@
         
         fileItem.innerHTML = `
           <div class="flex items-center space-x-3">
-            <span class="text-blue-600">��</span>
+            <span class="text-blue-600"></span>
             <span class="font-medium">${file.name}</span>
             <span class="text-gray-500 text-sm">(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
           </div>
@@ -277,11 +277,14 @@
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      console.log("Form submitted!"); // Debug log
 
       if (allSelectedFiles.length === 0) {
         alert("Please select at least one file.");
         return;
       }
+
+      console.log("Files selected:", allSelectedFiles.length); // Debug log
 
       // Check if all files have quantities
       const missingQuantities = allSelectedFiles.filter(file => !fileQuantities[file.name] || fileQuantities[file.name] === "");
@@ -289,6 +292,8 @@
         alert("Please enter quantities for all files.");
         return;
       }
+
+      console.log("All quantities entered"); // Debug log
 
       generateBtn.disabled = true;
       generateBtn.classList.add("opacity-70", "cursor-not-allowed");
@@ -305,11 +310,14 @@
       const gangWidth = document.getElementById("gangWidth").value;
       const maxLength = document.getElementById("maxLength").value;
 
+      console.log("Processing first file..."); // Debug log
+
       try {
         // For now, process the first file to test the functionality
-        // We'll enhance this in the next step to process all files
         const firstFile = allSelectedFiles[0];
         const firstQuantity = fileQuantities[firstFile.name];
+
+        console.log("First file:", firstFile.name, "Quantity:", firstQuantity); // Debug log
 
         const formData = new FormData();
         formData.append("file", firstFile);
@@ -318,16 +326,21 @@
         formData.append("gangWidth", gangWidth);
         formData.append("maxLength", maxLength);
 
+        console.log("Sending request to server..."); // Debug log
+
         const response = await fetch("/merge", {
           method: "POST",
           body: formData
         });
+
+        console.log("Response received:", response.status); // Debug log
 
         if (!response.ok) {
           throw new Error(`Server error: ${response.status}`);
         }
 
         const data = await response.json();
+        console.log("Data received:", data); // Debug log
 
         let html = `
           <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
@@ -349,7 +362,7 @@
             <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
               <div>
                 📄 <span class="font-medium">${s.filename}</span>
-                <span class="text-green-600 font-semibold ml-2">�� $${s.cost.toFixed(2)}</span>
+                <span class="text-green-600 font-semibold ml-2"> $${s.cost.toFixed(2)}</span>
               </div>
               <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
                  ⬇️ Download
@@ -388,6 +401,7 @@
         });
 
       } catch (error) {
+        console.error("Error:", error); // Debug log
         logDiv.innerHTML = `
           <div class="text-center text-red-600 font-semibold p-4 bg-red-50 border border-red-200 rounded-lg">
             ❌ Error: ${error.message}
