@@ -45,8 +45,8 @@
           <canvas id="pdfThumbnail" class="border rounded-md shadow-sm"></canvas>
         </div>
 
-        <!-- ✅ Quantity (keeping original for now) -->
-        <div>
+        <!-- ✅ Quantity (hidden when multiple files) -->
+        <div id="singleQuantitySection">
           <label class="block font-medium mb-1">Quantity</label>
           <input type="number" id="quantity" min="1" required 
             class="block w-full border border-gray-300 rounded-lg p-2" />
@@ -101,6 +101,10 @@
     const pdfThumbnailCanvas = document.getElementById("pdfThumbnail");
     const fileList = document.getElementById("fileList");
     const fileItems = document.getElementById("fileItems");
+    const singleQuantitySection = document.getElementById("singleQuantitySection");
+
+    // Store all selected files
+    let allSelectedFiles = [];
 
     // ✅ Clicking drop zone triggers file picker
     dropZone.addEventListener("click", () => fileInput.click());
@@ -125,35 +129,58 @@
       dropZone.classList.remove("border-blue-500", "bg-blue-50");
 
       if (e.dataTransfer.files.length > 0) {
-        fileInput.files = e.dataTransfer.files;
         handleFiles(e.dataTransfer.files);
       }
     });
 
-    // ✅ NEW: Handle multiple files
-    function handleFiles(files) {
-      if (!files || files.length === 0) return;
-
-      // Check if too many files
-      if (files.length > 10) {
-        alert("Please select no more than 10 files.");
-        return;
-      }
+    // ✅ FIXED: Handle multiple files
+    function handleFiles(newFiles) {
+      if (!newFiles || newFiles.length === 0) return;
 
       // Check file types
-      for (let file of files) {
+      for (let file of newFiles) {
         if (!file.name.toLowerCase().endsWith(".pdf")) {
           alert("Please select only PDF files.");
           return;
         }
       }
 
+      // Add new files to existing files
+      allSelectedFiles = [...allSelectedFiles, ...Array.from(newFiles)];
+
+      // Check if too many files total
+      if (allSelectedFiles.length > 10) {
+        alert("Please select no more than 10 files total.");
+        allSelectedFiles = allSelectedFiles.slice(0, 10);
+      }
+
+      // Update file input
+      const dt = new DataTransfer();
+      allSelectedFiles.forEach(file => dt.items.add(file));
+      fileInput.files = dt.files;
+
       // Show file list
+      displayFileList();
+    }
+
+    // ✅ NEW: Display file list
+    function displayFileList() {
+      if (allSelectedFiles.length === 0) {
+        fileList.classList.add("hidden");
+        singleQuantitySection.classList.remove("hidden");
+        dropZoneText.innerHTML = `
+          <strong>Drag & drop your files here</strong><br>
+          <span class="text-sm">Supports PDF files (max 10 files)</span>
+        `;
+        return;
+      }
+
       fileList.classList.remove("hidden");
+      singleQuantitySection.classList.add("hidden");
       fileItems.innerHTML = "";
 
       // Create file items
-      Array.from(files).forEach((file, index) => {
+      allSelectedFiles.forEach((file, index) => {
         const fileItem = document.createElement("div");
         fileItem.className = "flex items-center justify-between bg-gray-50 border rounded-md p-3";
         fileItem.innerHTML = `
@@ -166,7 +193,7 @@
             <input type="number" min="1" placeholder="Qty" 
               class="border border-gray-300 rounded px-2 py-1 w-20 text-center" 
               data-file-index="${index}" required />
-            <button type="button" class="text-red-600 hover:text-red-800" 
+            <button type="button" class="text-red-600 hover:text-red-800 px-2 py-1" 
               onclick="removeFile(${index})">❌</button>
           </div>
         `;
@@ -175,21 +202,21 @@
 
       // Update drop zone text
       dropZoneText.innerHTML = `
-        <strong>${files.length} file(s) selected</strong><br>
+        <strong>${allSelectedFiles.length} file(s) selected</strong><br>
         <span class="text-sm">Drag & drop to add more files (max 10)</span>
       `;
     }
 
-    // ✅ NEW: Remove file function
+    // ✅ FIXED: Remove file function
     function removeFile(index) {
-      const dt = new DataTransfer();
-      const files = Array.from(fileInput.files);
-      files.splice(index, 1);
+      allSelectedFiles.splice(index, 1);
       
-      files.forEach(file => dt.items.add(file));
+      // Update file input
+      const dt = new DataTransfer();
+      allSelectedFiles.forEach(file => dt.items.add(file));
       fileInput.files = dt.files;
       
-      handleFiles(fileInput.files);
+      displayFileList();
     }
 
     // ✅ Keep original single file handling for now
