@@ -16,7 +16,7 @@
     <div class="bg-white shadow-md rounded-lg p-6">
       <form id="uploadForm" class="space-y-4">
 
-        <!-- ✅ Drag-and-Drop Zone with Cloud Icon -->
+        <!-- ✅ Enhanced Drag-and-Drop Zone for Multiple Files -->
         <div id="dropZone"
           class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
           <div class="flex flex-col items-center justify-center space-y-2">
@@ -26,19 +26,26 @@
                 d="M7 16a4 4 0 01.88-7.9A5 5 0 1119 11h1a3 3 0 010 6h-3m-4-4v6m0 0l-2-2m2 2l2-2"/>
             </svg>
             <p class="text-gray-500" id="dropZoneText">
-              <strong>Drag & drop your PDF here</strong><br>or click to browse
+              <strong>Drag & drop your files here</strong><br>
+              <span class="text-sm">Supports PDF files (max 10 files)</span>
             </p>
           </div>
-          <input type="file" id="file" class="hidden" accept="application/pdf" required />
+          <input type="file" id="file" class="hidden" accept="application/pdf" multiple required />
         </div>
 
-        <!-- ✅ Selected File + Thumbnail Preview -->
+        <!-- ✅ File List Section -->
+        <div id="fileList" class="space-y-3 hidden">
+          <h3 class="font-medium text-gray-700">Selected Files:</h3>
+          <div id="fileItems" class="space-y-2"></div>
+        </div>
+
+        <!-- ✅ Selected File + Thumbnail Preview (keeping original for now) -->
         <div id="filePreview" class="mt-4 hidden">
           <p id="fileName" class="text-green-700 font-medium mb-2"></p>
           <canvas id="pdfThumbnail" class="border rounded-md shadow-sm"></canvas>
         </div>
 
-        <!-- ✅ Quantity -->
+        <!-- ✅ Quantity (keeping original for now) -->
         <div>
           <label class="block font-medium mb-1">Quantity</label>
           <input type="number" id="quantity" min="1" required 
@@ -92,12 +99,14 @@
     const filePreview = document.getElementById("filePreview");
     const fileNameDisplay = document.getElementById("fileName");
     const pdfThumbnailCanvas = document.getElementById("pdfThumbnail");
+    const fileList = document.getElementById("fileList");
+    const fileItems = document.getElementById("fileItems");
 
     // ✅ Clicking drop zone triggers file picker
     dropZone.addEventListener("click", () => fileInput.click());
 
     // ✅ When file selected manually
-    fileInput.addEventListener("change", () => handleFile(fileInput.files));
+    fileInput.addEventListener("change", () => handleFiles(fileInput.files));
 
     // ✅ Drag over highlights the zone
     dropZone.addEventListener("dragover", (e) => {
@@ -116,12 +125,74 @@
       dropZone.classList.remove("border-blue-500", "bg-blue-50");
 
       if (e.dataTransfer.files.length > 0) {
-        fileInput.files = e.dataTransfer.files; // Assign file
-        handleFile(e.dataTransfer.files);
+        fileInput.files = e.dataTransfer.files;
+        handleFiles(e.dataTransfer.files);
       }
     });
 
-    // ✅ Handle showing file name + thumbnail
+    // ✅ NEW: Handle multiple files
+    function handleFiles(files) {
+      if (!files || files.length === 0) return;
+
+      // Check if too many files
+      if (files.length > 10) {
+        alert("Please select no more than 10 files.");
+        return;
+      }
+
+      // Check file types
+      for (let file of files) {
+        if (!file.name.toLowerCase().endsWith(".pdf")) {
+          alert("Please select only PDF files.");
+          return;
+        }
+      }
+
+      // Show file list
+      fileList.classList.remove("hidden");
+      fileItems.innerHTML = "";
+
+      // Create file items
+      Array.from(files).forEach((file, index) => {
+        const fileItem = document.createElement("div");
+        fileItem.className = "flex items-center justify-between bg-gray-50 border rounded-md p-3";
+        fileItem.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <span class="text-blue-600">��</span>
+            <span class="font-medium">${file.name}</span>
+            <span class="text-gray-500 text-sm">(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <input type="number" min="1" placeholder="Qty" 
+              class="border border-gray-300 rounded px-2 py-1 w-20 text-center" 
+              data-file-index="${index}" required />
+            <button type="button" class="text-red-600 hover:text-red-800" 
+              onclick="removeFile(${index})">❌</button>
+          </div>
+        `;
+        fileItems.appendChild(fileItem);
+      });
+
+      // Update drop zone text
+      dropZoneText.innerHTML = `
+        <strong>${files.length} file(s) selected</strong><br>
+        <span class="text-sm">Drag & drop to add more files (max 10)</span>
+      `;
+    }
+
+    // ✅ NEW: Remove file function
+    function removeFile(index) {
+      const dt = new DataTransfer();
+      const files = Array.from(fileInput.files);
+      files.splice(index, 1);
+      
+      files.forEach(file => dt.items.add(file));
+      fileInput.files = dt.files;
+      
+      handleFiles(fileInput.files);
+    }
+
+    // ✅ Keep original single file handling for now
     function handleFile(files) {
       if (!files || files.length === 0) return;
 
@@ -157,7 +228,7 @@
       reader.readAsArrayBuffer(file);
     }
 
-    // ✅ Existing form submission stays same
+    // ✅ Existing form submission stays same for now
     const form = document.getElementById("uploadForm");
     const logDiv = document.getElementById("log");
     const generateBtn = document.getElementById("generateBtn");
@@ -229,7 +300,7 @@
           <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
             <div>
               📄 <span class="font-medium">${s.filename}</span>
-              <span class="text-green-600 font-semibold ml-2">💰 $${s.cost.toFixed(2)}</span>
+              <span class="text-green-600 font-semibold ml-2">�� $${s.cost.toFixed(2)}</span>
             </div>
             <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
                ⬇️ Download
