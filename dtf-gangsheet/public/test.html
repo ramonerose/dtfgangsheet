@@ -103,8 +103,9 @@
     const fileItems = document.getElementById("fileItems");
     const singleQuantitySection = document.getElementById("singleQuantitySection");
 
-    // Store all selected files
+    // Store all selected files with their quantities
     let allSelectedFiles = [];
+    let fileQuantities = {};
 
     // ✅ Clicking drop zone triggers file picker
     dropZone.addEventListener("click", () => fileInput.click());
@@ -146,7 +147,8 @@
       }
 
       // Add new files to existing files
-      allSelectedFiles = [...allSelectedFiles, ...Array.from(newFiles)];
+      const newFileArray = Array.from(newFiles);
+      allSelectedFiles = [...allSelectedFiles, ...newFileArray];
 
       // Check if too many files total
       if (allSelectedFiles.length > 10) {
@@ -163,7 +165,7 @@
       displayFileList();
     }
 
-    // ✅ NEW: Display file list
+    // ✅ FIXED: Display file list with preserved quantities
     function displayFileList() {
       if (allSelectedFiles.length === 0) {
         fileList.classList.add("hidden");
@@ -183,6 +185,10 @@
       allSelectedFiles.forEach((file, index) => {
         const fileItem = document.createElement("div");
         fileItem.className = "flex items-center justify-between bg-gray-50 border rounded-md p-3";
+        
+        // Get preserved quantity or default to empty
+        const preservedQuantity = fileQuantities[file.name] || "";
+        
         fileItem.innerHTML = `
           <div class="flex items-center space-x-3">
             <span class="text-blue-600">��</span>
@@ -190,9 +196,9 @@
             <span class="text-gray-500 text-sm">(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
           </div>
           <div class="flex items-center space-x-2">
-            <input type="number" min="1" placeholder="Qty" 
+            <input type="number" min="1" placeholder="Qty" value="${preservedQuantity}"
               class="border border-gray-300 rounded px-2 py-1 w-20 text-center" 
-              data-file-index="${index}" required />
+              data-file-name="${file.name}" onchange="updateQuantity('${file.name}', this.value)" required />
             <button type="button" class="text-red-600 hover:text-red-800 px-2 py-1" 
               onclick="removeFile(${index})">❌</button>
           </div>
@@ -207,9 +213,18 @@
       `;
     }
 
+    // ✅ NEW: Update quantity for a specific file
+    function updateQuantity(fileName, quantity) {
+      fileQuantities[fileName] = quantity;
+    }
+
     // ✅ FIXED: Remove file function
     function removeFile(index) {
+      const removedFile = allSelectedFiles[index];
+      
+      // Remove the file from arrays
       allSelectedFiles.splice(index, 1);
+      delete fileQuantities[removedFile.name];
       
       // Update file input
       const dt = new DataTransfer();
@@ -255,7 +270,7 @@
       reader.readAsArrayBuffer(file);
     }
 
-    // ✅ Existing form submission stays same for now
+    // ✅ FIXED: Enhanced form submission for multiple files
     const form = document.getElementById("uploadForm");
     const logDiv = document.getElementById("log");
     const generateBtn = document.getElementById("generateBtn");
@@ -263,8 +278,15 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      if (!fileInput.files.length) {
-        alert("Please select a PDF file.");
+      if (allSelectedFiles.length === 0) {
+        alert("Please select at least one file.");
+        return;
+      }
+
+      // Check if all files have quantities
+      const missingQuantities = allSelectedFiles.filter(file => !fileQuantities[file.name] || fileQuantities[file.name] === "");
+      if (missingQuantities.length > 0) {
+        alert("Please enter quantities for all files.");
         return;
       }
 
@@ -279,91 +301,102 @@
         </div>
       `;
 
-      const file = fileInput.files[0];
-      const quantity = document.getElementById("quantity").value;
       const rotate = document.getElementById("rotate").value;
       const gangWidth = document.getElementById("gangWidth").value;
       const maxLength = document.getElementById("maxLength").value;
 
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("quantity", quantity);
-      formData.append("rotate", rotate);
-      formData.append("gangWidth", gangWidth);
-      formData.append("maxLength", maxLength);
+      try {
+        // For now, process the first file to test the functionality
+        // We'll enhance this in the next step to process all files
+        const firstFile = allSelectedFiles[0];
+        const firstQuantity = fileQuantities[firstFile.name];
 
-      const response = await fetch("/merge", {
-        method: "POST",
-        body: formData
-      });
+        const formData = new FormData();
+        formData.append("file", firstFile);
+        formData.append("quantity", firstQuantity);
+        formData.append("rotate", rotate);
+        formData.append("gangWidth", gangWidth);
+        formData.append("maxLength", maxLength);
 
-      if (!response.ok) {
-        logDiv.innerHTML = `<div class="text-center text-red-600 font-semibold">❌ Server error! Please try again.</div>`;
+        const response = await fetch("/merge", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        let html = `
+          <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
+            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <p class="text-green-700 font-semibold">Sheets ready!</p>
+          </div>
+
+          <div class="bg-white shadow-md rounded-lg p-4 animate-fadeIn">
+            <h3 class="text-lg font-bold mb-3">
+              ✅ ${data.sheets.length} sheet(s) generated for ${firstFile.name}
+            </h3>
+            <ul class="space-y-2">
+        `;
+
+        data.sheets.forEach((s) => {
+          html += `
+            <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
+              <div>
+                📄 <span class="font-medium">${s.filename}</span>
+                <span class="text-green-600 font-semibold ml-2">�� $${s.cost.toFixed(2)}</span>
+              </div>
+              <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
+                 ⬇️ Download
+              </a>
+            </li>
+          `;
+        });
+
+        html += `</ul>
+          <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
+            <span class="block text-sm text-gray-600">Summary</span>
+            <span class="text-xl font-bold text-green-700">
+              Total Cost: $${data.totalCost.toFixed(2)}
+            </span>
+          </div>
+          <button id="downloadAll" 
+            class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+            ⬇️ Download All
+          </button>
+          </div>
+        `;
+
+        logDiv.innerHTML = html;
+
         generateBtn.disabled = false;
         generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
         generateBtn.textContent = "Generate Gang Sheet";
-        return;
-      }
 
-      const data = await response.json();
-
-      let html = `
-        <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
-          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <p class="text-green-700 font-semibold">Sheets ready!</p>
-        </div>
-
-        <div class="bg-white shadow-md rounded-lg p-4 animate-fadeIn">
-          <h3 class="text-lg font-bold mb-3">
-            ✅ ${data.sheets.length} sheet(s) generated
-          </h3>
-          <ul class="space-y-2">
-      `;
-
-      data.sheets.forEach((s) => {
-        html += `
-          <li class="flex justify-between items-center bg-gray-50 border rounded-md p-3">
-            <div>
-              📄 <span class="font-medium">${s.filename}</span>
-              <span class="text-green-600 font-semibold ml-2">�� $${s.cost.toFixed(2)}</span>
-            </div>
-            <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
-               ⬇️ Download
-            </a>
-          </li>
-        `;
-      });
-
-      html += `</ul>
-        <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
-          <span class="block text-sm text-gray-600">Summary</span>
-          <span class="text-xl font-bold text-green-700">
-            Total Cost: $${data.totalCost.toFixed(2)}
-          </span>
-        </div>
-        <button id="downloadAll" 
-          class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
-          ⬇️ Download All
-        </button>
-        </div>
-      `;
-
-      logDiv.innerHTML = html;
-
-      generateBtn.disabled = false;
-      generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
-      generateBtn.textContent = "Generate Gang Sheet";
-
-      document.getElementById("downloadAll").addEventListener("click", () => {
-        data.sheets.forEach((s) => {
-          const a = document.createElement("a");
-          a.href = `data:application/pdf;base64,${s.pdfBase64}`;
-          a.download = s.filename;
-          a.click();
+        document.getElementById("downloadAll").addEventListener("click", () => {
+          data.sheets.forEach((s) => {
+            const a = document.createElement("a");
+            a.href = `data:application/pdf;base64,${s.pdfBase64}`;
+            a.download = s.filename;
+            a.click();
+          });
         });
-      });
+
+      } catch (error) {
+        logDiv.innerHTML = `
+          <div class="text-center text-red-600 font-semibold p-4 bg-red-50 border border-red-200 rounded-lg">
+            ❌ Error: ${error.message}
+          </div>
+        `;
+        generateBtn.disabled = false;
+        generateBtn.classList.remove("opacity-70", "cursor-not-allowed");
+        generateBtn.textContent = "Generate Gang Sheet";
+      }
     });
   </script>
 
