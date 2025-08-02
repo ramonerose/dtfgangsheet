@@ -1,0 +1,1787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EZGangSheets - Professional DTF Gang Sheet Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Dark mode variables */
+        :root {
+          --bg-primary: #ffffff;
+          --bg-secondary: #f9fafb;
+          --bg-tertiary: #f3f4f6;
+          --text-primary: #111827;
+          --text-secondary: #374151;
+          --text-muted: #6b7280;
+          --border-color: #d1d5db;
+          --accent-color: #3b82f6;
+        }
+        
+        .dark {
+          --bg-primary: #1f2937;
+          --bg-secondary: #374151;
+          --bg-tertiary: #4b5563;
+          --text-primary: #f9fafb;
+          --text-secondary: #d1d5db;
+          --text-muted: #9ca3af;
+          --border-color: #4b5563;
+          --accent-color: #3b82f6;
+        }
+        .dark body { background-color: var(--bg-primary); color: var(--text-primary); }
+        .dark .bg-white { background-color: var(--bg-secondary); }
+        .dark .bg-gray-50 { background-color: var(--bg-tertiary); }
+        .dark .bg-gray-100 { background-color: var(--bg-tertiary); }
+        .dark .text-gray-900 { color: var(--text-primary); }
+        .dark .text-gray-700 { color: var(--text-primary) !important; }
+        .dark .text-gray-600 { color: var(--text-primary) !important; }
+        .dark .text-gray-500 { color: var(--text-secondary) !important; }
+        .dark .text-sm { color: var(--text-primary) !important; }
+        .dark .text-xs { color: var(--text-secondary) !important; }
+        .dark input::placeholder { color: var(--text-muted); }
+        .dark select { color: var(--text-primary); background-color: var(--bg-secondary); }
+        .dark input { color: var(--text-primary) !important; background-color: white !important; }
+        .dark input[type="number"] { color: #1f2937 !important; }
+        .dark-mode-on { background-color: var(--accent-color); }
+        .dark-mode-on #darkModeSlider { transform: translateX(20px); }
+        .dark-mode-off { background-color: #d1d5db; }
+        
+        .dark .border-gray-200 {
+          border-color: var(--border-color);
+        }
+
+        /* Logo dark mode filter */
+        .dark .logo {
+          filter: brightness(0) invert(1);
+        }
+
+        /* Additional dark mode text fixes */
+        .dark .text-sm {
+          color: var(--text-primary) !important;
+        }
+
+        .dark .text-xs {
+          color: var(--text-secondary) !important;
+        }
+
+        .dark .bg-gray-50 {
+          background-color: var(--bg-tertiary);
+        }
+
+        .dark .bg-gray-100 {
+          background-color: var(--bg-tertiary);
+        }
+
+        .dark input {
+          color: var(--text-primary) !important;
+          background-color: white !important;
+        }
+
+        .dark input[type="number"] {
+          color: #1f2937 !important;
+        }
+
+        /* Force all text to be visible in dark mode */
+        .dark .text-gray-500,
+        .dark .text-gray-600,
+        .dark .text-gray-700 {
+          color: var(--text-primary) !important;
+        }
+
+        /* Specific fixes for settings modal text */
+        .dark .text-gray-700 {
+          color: var(--text-primary) !important;
+        }
+
+        .dark .text-gray-600 {
+          color: var(--text-primary) !important;
+        }
+
+        .dark .text-gray-500 {
+          color: var(--text-secondary) !important;
+        }
+
+        /* Dark mode toggle styles */
+        .dark-mode-on {
+          background-color: var(--accent-color);
+        }
+
+        .dark-mode-on #darkModeSlider {
+          transform: translateX(20px);
+        }
+
+        .dark-mode-off {
+          background-color: #d1d5db;
+        }
+
+        /* Main page dark mode styles */
+        .dark body {
+          background-color: var(--bg-primary);
+        }
+
+        .dark header {
+          background-color: var(--bg-secondary);
+          border-color: var(--border-color);
+        }
+
+        .dark .bg-gradient-to-br {
+          background: linear-gradient(to bottom right, var(--bg-secondary), var(--bg-tertiary));
+        }
+
+        .dark .text-gray-900 {
+          color: var(--text-primary) !important;
+        }
+
+        .dark .text-gray-600 {
+          color: var(--text-secondary) !important;
+        }
+
+        .dark .bg-white {
+          background-color: var(--bg-secondary);
+        }
+
+        .dark .shadow-sm {
+          box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .dark .shadow-md {
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        .dark .shadow-lg {
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        .dark .border-gray-200 {
+          border-color: var(--border-color);
+        }
+
+        .dark .hover\:text-gray-900:hover {
+          color: var(--text-primary) !important;
+        }
+
+        .dark .hover\:bg-gray-100:hover {
+          background-color: var(--bg-tertiary) !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Professional Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200 dark:bg-gray-900 dark:border-gray-700">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <img src="EZGangSheetsLogo.png" alt="EZGangSheets" class="h-8 logo">
+                </div>
+                <div class="flex items-center space-x-8">
+                    <nav class="hidden md:flex items-center space-x-8">
+                        <a href="#features" class="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition">Features</a>
+                        <a href="#pricing" class="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition">Pricing</a>
+                        <button class="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition">Login</button>
+                        <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">Register</button>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section with Tool -->
+    <section class="bg-gradient-to-br from-blue-50 to-indigo-100 py-16">
+        <div class="container mx-auto px-4">
+            <div class="text-center mb-12">
+                <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+                    Your DTF workflow just got 10x faster...and saved you a headache
+                </h1>
+            </div>
+
+            <!-- 3-Step Process -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Just 3 easy steps to perfect gang sheets</h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="text-center">
+                        <div class="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-2xl font-bold text-blue-600">1</span>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Upload Images & Set Quantities</h3>
+                        <p class="text-gray-600 text-sm">Drop your PDF files and specify how many of each you need</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-2xl font-bold text-blue-600">2</span>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Choose Your Gang Sheet Size</h3>
+                        <p class="text-gray-600 text-sm">Select width and max length for optimal layout</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-2xl font-bold text-blue-600">3</span>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Generate & Download</h3>
+                        <p class="text-gray-600 text-sm">Get your perfectly optimized gang sheets instantly</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Your Tool Embedded Here -->
+            <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-8">
+                <div class="flex justify-between items-start mb-8">
+                    <div class="text-center flex-1">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-2">DTF Gang Sheet Generator</h2>
+                        <p class="text-gray-600">Upload your PDF files and generate optimized gang sheets instantly</p>
+                    </div>
+                    <button id="settingsBtn" class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition ml-4">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+
+        <!-- ✅ Tab Navigation -->
+        <div class="bg-white shadow-md rounded-lg mb-6">
+          <div class="border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+              <button id="gangSheetTab" class="border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm tab-button active">
+                Gang Sheet Generator
+              </button>
+              <button id="quoteTab" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm tab-button">
+                Cost Calculator
+              </button>
+            </nav>
+          </div>
+
+        </div>
+
+        <!-- ✅ Gang Sheet Generator Tab -->
+        <div id="gangSheetContent" class="tab-content">
+          <div class="bg-white shadow-md rounded-lg p-6">
+            <form id="uploadForm" class="space-y-4">
+
+            <!-- ✅ File Requirements Info -->
+            <div class="mb-4">
+              <button id="fileRequirementsBtn" class="flex items-center text-sm text-blue-600 hover:text-blue-700 transition">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                File Requirements
+              </button>
+              <div id="fileRequirementsContent" class="hidden mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p class="text-sm text-gray-700 mb-2">For best results, ensure your file is properly formatted by:</p>
+                <ul class="text-sm text-gray-600 space-y-1">
+                  <li>• Setting your file to the print size desired</li>
+                  <li>• Make sure you "Fit to Artwork Bounds"</li>
+                  <li>• Save file as a "Press Quality" PDF (even if your original art file is a PNG)</li>
+                </ul>
+                <p class="text-xs italic text-gray-500 mt-2">For best quality, use vector art files when possible.</p>
+                <p class="text-xs italic text-gray-500 mt-2">Need help formatting? Check out the File Prep guide in the menu bar.</p>
+              </div>
+            </div>
+
+            <!-- ✅ Enhanced Drag-and-Drop Zone for Multiple Files -->
+            <div id="dropZone"
+              class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
+              <div class="flex flex-col items-center justify-center space-y-2">
+                <!-- Cloud Upload Icon -->
+                <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M7 16a4 4 0 01.88-7.9A5 5 0 1119 11h1a3 3 0 010 6h-3m-4-4v6m0 0l-2-2m2 2l2-2"/>
+                </svg>
+                <p class="text-gray-500" id="dropZoneText">
+                  <strong>Drag & drop your files here</strong><br>
+                  <span class="text-sm">Supports PDF files (max 10 files)</span>
+                </p>
+              </div>
+              <input type="file" id="file" class="hidden" accept="application/pdf" multiple required />
+            </div>
+
+            <!-- ✅ File List Section -->
+            <div id="fileList" class="space-y-3 hidden">
+              <h3 class="font-medium text-gray-700">Selected Files:</h3>
+              <div id="fileItems" class="space-y-2"></div>
+            </div>
+
+            <!-- ✅ Selected File + Thumbnail Preview (keeping original for now) -->
+            <div id="filePreview" class="mt-4 hidden">
+              <p id="fileName" class="text-green-700 font-medium mb-2"></p>
+              <canvas id="pdfThumbnail" class="border rounded-md shadow-sm"></canvas>
+            </div>
+
+
+
+
+
+            <!-- ✅ Width -->
+            <div>
+              <label class="block font-medium mb-1">Gang Sheet Width</label>
+              <select id="gangWidth" name="gangWidth" class="block w-full border border-gray-300 rounded-lg p-2">
+                <option value="22" selected>22 inches</option>
+                <option value="30">30 inches</option>
+              </select>
+            </div>
+
+            <!-- ✅ Max Length -->
+            <div>
+              <label class="block font-medium mb-1">Max Sheet Length (inches)</label>
+              <input type="number" id="maxLength" name="maxLength" min="12" value="200" 
+                class="block w-full border border-gray-300 rounded-lg p-2" />
+            </div>
+
+            <button id="generateBtn" type="submit" 
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">
+              Generate All Gang Sheets
+            </button>
+            
+            <!-- Progress Indicator (hidden by default) -->
+            <div id="progressIndicator" class="hidden mt-4">
+              <div class="bg-gray-100 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <span id="progressStatus" class="text-sm font-medium text-gray-700">Processing...</span>
+                  <span id="progressPercent" class="text-sm font-medium text-blue-600">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                  <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <div id="progressDetails" class="text-xs text-gray-500 mt-2">Initializing...</div>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- ✅ Results Section -->
+        <div id="log" class="mt-6"></div>
+          </div>
+        </div>
+
+                 <!-- ✅ Cost Calculator Tab -->
+         <div id="quoteContent" class="tab-content hidden">
+           <div class="bg-white shadow-md rounded-lg p-6 pt-10 max-w-4xl mx-auto">
+            <form id="quoteForm" class="space-y-4 w-full">
+              <!-- Artwork Dimensions -->
+              <div class="flex w-full space-x-2">
+                <div class="flex-1">
+                  <label class="block font-medium mb-2 text-gray-700">Artwork Width (inches)</label>
+                  <input type="number" id="artWidth" step="0.1" min="0.1" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 6.5" required>
+                </div>
+                <div class="flex-1">
+                  <label class="block font-medium mb-2 text-gray-700">Artwork Height (inches)</label>
+                  <input type="number" id="artHeight" step="0.1" min="0.1" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 4.2" required>
+                </div>
+              </div>
+
+              <!-- Quantity -->
+              <div class="w-full">
+                <label class="block font-medium mb-2 text-gray-700">Quantity Needed</label>
+                <input type="number" id="quoteQuantity" min="1" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 100" required>
+              </div>
+
+              <!-- Gang Sheet Settings -->
+              <div class="flex w-full space-x-2">
+                <div class="flex-1">
+                  <label class="block font-medium mb-2 text-gray-700">Gang Sheet Width</label>
+                  <select id="quoteGangWidth" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="22">22 inches</option>
+                    <option value="30">30 inches</option>
+                  </select>
+                </div>
+                <div class="flex-1">
+                  <label class="block font-medium mb-2 text-gray-700">Max Sheet Length</label>
+                  <input type="number" id="quoteMaxLength" min="12" value="200" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+              </div>
+
+              <!-- Calculate Button -->
+              <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition">
+                Calculate Cost
+              </button>
+            </form>
+
+            <!-- Quote Results -->
+            <div id="quoteResults" class="mt-6 hidden">
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 class="text-lg font-bold text-blue-800 mb-3">Cost Breakdown</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <!-- Artwork Info -->
+                  <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Dimensions:</span>
+                      <span id="artDimensions" class="font-medium"></span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Quantity:</span>
+                      <span id="artQuantity" class="font-medium"></span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Sheets needed:</span>
+                      <span id="sheetsNeeded" class="font-medium"></span>
+                    </div>
+                  </div>
+                  
+                  <!-- Cost Details -->
+                  <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Cost per sheet:</span>
+                      <span id="costPerSheet" class="font-medium"></span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Cost per logo:</span>
+                      <span id="costPerLogo" class="font-medium"></span>
+                    </div>
+                    <div class="flex justify-between border-t pt-2">
+                      <span class="text-gray-800 font-semibold">Total cost:</span>
+                      <span id="totalCost" class="font-bold text-lg text-blue-600"></span>
+                    </div>
+                  </div>
+                  
+                  <!-- Sheet Details -->
+                  <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Sheet size:</span>
+                    </div>
+                    <div class="bg-white rounded border p-3">
+                      <span id="sheetSize" class="font-medium text-xs leading-relaxed"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="mt-4 flex space-x-3">
+                  <button id="copyQuote" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                    Copy Quote
+                  </button>
+                  <button id="createGangSheet" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                    Create Gang Sheet
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ✅ PDF.js (for thumbnail rendering) -->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+
+      <script>
+        // Tab switching functionality
+        const gangSheetTab = document.getElementById("gangSheetTab");
+        const quoteTab = document.getElementById("quoteTab");
+        const gangSheetContent = document.getElementById("gangSheetContent");
+        const quoteContent = document.getElementById("quoteContent");
+
+        gangSheetTab.addEventListener("click", () => switchTab("gangSheet"));
+        quoteTab.addEventListener("click", () => switchTab("quote"));
+
+        function switchTab(tabName) {
+          // Update tab buttons
+          document.querySelectorAll(".tab-button").forEach(btn => {
+            btn.classList.remove("border-blue-500", "text-blue-600");
+            btn.classList.add("border-transparent", "text-gray-500");
+          });
+
+          // Hide all content
+          document.querySelectorAll(".tab-content").forEach(content => {
+            content.classList.add("hidden");
+          });
+
+          // Show selected tab
+          if (tabName === "gangSheet") {
+            gangSheetTab.classList.remove("border-transparent", "text-gray-500");
+            gangSheetTab.classList.add("border-blue-500", "text-blue-600");
+            gangSheetContent.classList.remove("hidden");
+          } else {
+            quoteTab.classList.remove("border-transparent", "text-gray-500");
+            quoteTab.classList.add("border-blue-500", "text-blue-600");
+            quoteContent.classList.remove("hidden");
+          }
+        }
+
+        // Cost calculation functionality
+        const quoteForm = document.getElementById("quoteForm");
+        const quoteResults = document.getElementById("quoteResults");
+
+        quoteForm.addEventListener("submit", calculateCost);
+
+        function calculateCost(e) {
+          e.preventDefault();
+          
+          const artWidth = parseFloat(document.getElementById("artWidth").value);
+          const artHeight = parseFloat(document.getElementById("artHeight").value);
+          const quantity = parseInt(document.getElementById("quoteQuantity").value);
+          const gangWidth = parseInt(document.getElementById("quoteGangWidth").value);
+          const maxLength = parseInt(document.getElementById("quoteMaxLength").value);
+          const smartFit = true; // Smart Fit is now always enabled by default
+
+          if (!artWidth || !artHeight || !quantity) {
+            alert("Please fill in all required fields.");
+            return;
+          }
+
+          // Smart Fit is now always enabled - automatically choose the best orientation
+          console.log('Smart Fit enabled - testing orientations...');
+          console.log('Artwork dimensions:', artWidth, 'x', artHeight);
+          
+          // Test horizontal orientation
+          const horizontalLayout = calculateLayout(artWidth, artHeight, false, gangWidth, maxLength);
+          console.log('Horizontal layout:', horizontalLayout);
+          
+          // Test vertical orientation  
+          const verticalLayout = calculateLayout(artHeight, artWidth, true, gangWidth, maxLength);
+          console.log('Vertical layout:', verticalLayout);
+          
+          // Choose the best option (simple horizontal vs vertical)
+          let bestLayout;
+          if (verticalLayout.logosPerSheet > horizontalLayout.logosPerSheet) {
+            // Vertical fits more logos
+            bestLayout = { ...verticalLayout, orientation: 'vertical', mixed: false };
+            console.log(`Smart Fit: Vertical wins (${verticalLayout.logosPerSheet} vs ${horizontalLayout.logosPerSheet} logos)`);
+          } else {
+            // Horizontal fits more logos (or equal)
+            bestLayout = { ...horizontalLayout, orientation: 'horizontal', mixed: false };
+            console.log(`Smart Fit: Horizontal wins (${horizontalLayout.logosPerSheet} vs ${verticalLayout.logosPerSheet} logos)`);
+          }
+
+          // Calculate sheets needed with best layout
+          const sheetsNeeded = Math.ceil(quantity / bestLayout.logosPerSheet);
+          
+          function calculateLayout(width, height, isRotated, gangWidth, maxLength) {
+            const POINTS_PER_INCH = 72;
+            const SAFE_MARGIN_INCH = 0.125;
+            const SPACING_INCH = 0.5;
+
+            const layoutWidthPts = width * POINTS_PER_INCH;
+            const layoutHeightPts = height * POINTS_PER_INCH;
+            const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
+            const spacingPts = SPACING_INCH * POINTS_PER_INCH;
+            const sheetWidthPts = gangWidth * POINTS_PER_INCH;
+            const maxHeightPts = maxLength * POINTS_PER_INCH;
+
+            const logoTotalWidth = layoutWidthPts + spacingPts;
+            const logoTotalHeight = layoutHeightPts + spacingPts;
+
+            const logosPerRow = Math.floor((sheetWidthPts - safeMarginPts * 2 + spacingPts) / logoTotalWidth);
+            const rowsPerSheet = Math.floor((maxHeightPts - safeMarginPts * 2 + spacingPts) / logoTotalHeight);
+            const logosPerSheet = logosPerRow * rowsPerSheet;
+            
+            return { logosPerRow, rowsPerSheet, logosPerSheet, logoTotalWidth, logoTotalHeight };
+          }
+          
+          function calculateMixedLayout(width, height, gangWidth, maxLength) {
+            const POINTS_PER_INCH = 72;
+            const SAFE_MARGIN_INCH = 0.125;
+            const SPACING_INCH = 0.5;
+            const sheetWidthPts = gangWidth * POINTS_PER_INCH;
+            const maxHeightPts = maxLength * POINTS_PER_INCH;
+            const safeMarginPts = SAFE_MARGIN_INCH * POINTS_PER_INCH;
+            const spacingPts = SPACING_INCH * POINTS_PER_INCH;
+            
+            // Calculate horizontal and vertical logo dimensions
+            const horizontalWidthPts = width * POINTS_PER_INCH + spacingPts;
+            const horizontalHeightPts = height * POINTS_PER_INCH + spacingPts;
+            const verticalWidthPts = height * POINTS_PER_INCH + spacingPts;
+            const verticalHeightPts = width * POINTS_PER_INCH + spacingPts;
+            
+            // Calculate how many of each orientation fit
+            const horizontalPerRow = Math.floor((sheetWidthPts - safeMarginPts * 2 + spacingPts) / horizontalWidthPts);
+            const verticalPerRow = Math.floor((sheetWidthPts - safeMarginPts * 2 + spacingPts) / verticalWidthPts);
+            
+            // Test different combinations of horizontal and vertical
+            let bestCombination = { total: 0, horizontal: 0, vertical: 0, rowHeight: 0 };
+            
+            for (let h = 0; h <= horizontalPerRow; h++) {
+              for (let v = 0; v <= verticalPerRow; v++) {
+                if (h + v === 0) continue; // Skip empty rows
+                
+                // Calculate row height based on what's in the row
+                let rowHeight = 0;
+                if (h > 0 && v > 0) {
+                  // Mixed row - use the taller of the two
+                  rowHeight = Math.max(horizontalHeightPts, verticalHeightPts);
+                } else if (h > 0) {
+                  // Only horizontal logos
+                  rowHeight = horizontalHeightPts;
+                } else if (v > 0) {
+                  // Only vertical logos
+                  rowHeight = verticalHeightPts;
+                }
+                
+                const rowsPerSheet = Math.floor((maxHeightPts - safeMarginPts * 2 + spacingPts) / rowHeight);
+                const totalLogos = (h * rowsPerSheet) + (v * rowsPerSheet);
+                
+                if (totalLogos > bestCombination.total) {
+                  bestCombination = { total: totalLogos, horizontal: h, vertical: v, rowHeight: rowHeight };
+                }
+              }
+            }
+            
+            return { 
+              logosPerSheet: bestCombination.total,
+              horizontalPerRow: bestCombination.horizontal,
+              verticalPerRow: bestCombination.vertical,
+              logoTotalWidth: horizontalWidthPts,
+              logoTotalHeight: bestCombination.rowHeight
+            };
+          }
+
+          // Get user's cost table for selected width
+          function getUserCostTable(width) {
+            const settings = loadSettings();
+            return settings.costTables[width] || settings.costTables[22];
+          }
+
+          function calculateCost(widthInches, heightInches) {
+            const costTable = getUserCostTable(widthInches);
+            
+            const roundedHeight = Math.ceil(heightInches / 12) * 12;
+            if (costTable[roundedHeight]) {
+              return costTable[roundedHeight];
+            }
+            
+            const availableTiers = Object.keys(costTable).map(Number).sort((a, b) => a - b);
+            const nextTier = availableTiers.find(t => t >= roundedHeight) || Math.max(...availableTiers);
+            return costTable[nextTier];
+          }
+
+          // Calculate cost for each sheet individually
+          let totalCost = 0;
+          let remainingLogos = quantity;
+          let sheetDetails = [];
+
+          for (let sheetIndex = 0; sheetIndex < sheetsNeeded; sheetIndex++) {
+            const logosOnThisSheet = Math.min(remainingLogos, bestLayout.logosPerSheet);
+            
+            let rowsOnThisSheet;
+            if (bestLayout.mixed) {
+              // For mixed layout, calculate rows based on the combination
+              const horizontalRows = Math.ceil(logosOnThisSheet / (bestLayout.horizontalPerRow + bestLayout.verticalPerRow));
+              rowsOnThisSheet = horizontalRows;
+            } else {
+              rowsOnThisSheet = Math.ceil(logosOnThisSheet / bestLayout.logosPerRow);
+            }
+            
+            const usedHeightPts = rowsOnThisSheet * bestLayout.logoTotalHeight + (0.125 * 72) * 2 - (0.5 * 72);
+            const sheetHeightInches = Math.ceil(usedHeightPts / 72);
+            
+            const sheetCost = calculateCost(gangWidth, sheetHeightInches);
+            totalCost += sheetCost;
+            
+            sheetDetails.push({
+              logos: logosOnThisSheet,
+              height: sheetHeightInches,
+              cost: sheetCost
+            });
+            
+            remainingLogos -= logosOnThisSheet;
+          }
+
+          // For display, show the first sheet details (most common case)
+          const firstSheet = sheetDetails[0];
+          const costPerSheet = firstSheet.cost;
+
+          // Calculate cost per logo
+          const costPerLogo = totalCost / quantity;
+          
+          // Display results
+          document.getElementById("artDimensions").textContent = `${artWidth}" × ${artHeight}"`;
+          document.getElementById("artQuantity").textContent = quantity.toLocaleString();
+          document.getElementById("sheetsNeeded").textContent = sheetsNeeded;
+          
+          // Show individual sheet costs (cleaner display for calculator)
+          if (sheetsNeeded === 1) {
+            document.getElementById("sheetSize").textContent = `${gangWidth}" × ${firstSheet.height}" (${firstSheet.logos} logos)`;
+            document.getElementById("costPerSheet").textContent = `$${costPerSheet.toFixed(2)}`;
+          } else {
+            const sheetBreakdown = sheetDetails.map((sheet, index) => 
+              `Sheet ${index + 1}: ${gangWidth}"×${sheet.height}" (${sheet.logos} logos) $${sheet.cost.toFixed(2)}`
+            ).join(", ");
+            document.getElementById("sheetSize").textContent = sheetBreakdown;
+            document.getElementById("costPerSheet").textContent = `$${costPerSheet.toFixed(2)} (first sheet)`;
+          }
+          
+          document.getElementById("costPerLogo").textContent = `$${costPerLogo.toFixed(3)}`;
+          document.getElementById("totalCost").textContent = `$${totalCost.toFixed(2)}`;
+
+          quoteResults.classList.remove("hidden");
+        }
+
+        // Copy quote functionality
+        document.getElementById("copyQuote").addEventListener("click", () => {
+          const artWidth = document.getElementById("artWidth").value;
+          const artHeight = document.getElementById("artHeight").value;
+          const quantity = document.getElementById("quoteQuantity").value;
+          const totalCost = document.getElementById("totalCost").textContent;
+          
+          const quoteText = `Artwork: ${artWidth}" × ${artHeight}"
+Quantity: ${quantity}
+Total Cost: ${totalCost}`;
+          
+          navigator.clipboard.writeText(quoteText).then(() => {
+            alert("Quote copied to clipboard!");
+          });
+        });
+
+        // Create gang sheet functionality
+        document.getElementById("createGangSheet").addEventListener("click", () => {
+          // Switch to gang sheet tab
+          switchTab("gangSheet");
+          // Could pre-fill the gang sheet form with the calculated values
+        });
+
+        const dropZone = document.getElementById("dropZone");
+        const dropZoneText = document.getElementById("dropZoneText");
+        const fileInput = document.getElementById("file");
+        const filePreview = document.getElementById("filePreview");
+        const fileNameDisplay = document.getElementById("fileName");
+        const pdfThumbnailCanvas = document.getElementById("pdfThumbnail");
+        const fileList = document.getElementById("fileList");
+        const fileItems = document.getElementById("fileItems");
+
+        // Store all selected files with their quantities
+        let allSelectedFiles = [];
+        let fileQuantities = {};
+
+        // ✅ Clicking drop zone triggers file picker
+        dropZone.addEventListener("click", () => fileInput.click());
+
+        // ✅ When file selected manually
+        fileInput.addEventListener("change", () => handleFiles(fileInput.files));
+
+        // ✅ Drag over highlights the zone
+        dropZone.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          dropZone.classList.add("border-blue-500", "bg-blue-50");
+        });
+
+        // ✅ Drag leave removes highlight
+        dropZone.addEventListener("dragleave", () => {
+          dropZone.classList.remove("border-blue-500", "bg-blue-50");
+        });
+
+        // ✅ Dropping file assigns it
+        dropZone.addEventListener("drop", (e) => {
+          e.preventDefault();
+          dropZone.classList.remove("border-blue-500", "bg-blue-50");
+
+          if (e.dataTransfer.files.length > 0) {
+            handleFiles(e.dataTransfer.files);
+          }
+        });
+
+        // ✅ FIXED: Handle multiple files
+        function handleFiles(newFiles) {
+          if (!newFiles || newFiles.length === 0) return;
+
+          // Check file types
+          for (let file of newFiles) {
+            const fileExtension = file.name.toLowerCase().split('.').pop();
+            if (fileExtension !== 'pdf' && fileExtension !== 'png') {
+              alert("Please select only PDF or PNG files.");
+              return;
+            }
+          }
+
+          // Add new files to existing files
+          const newFileArray = Array.from(newFiles);
+          allSelectedFiles = [...allSelectedFiles, ...newFileArray];
+
+          // Check if too many files total
+          if (allSelectedFiles.length > 10) {
+            alert("Please select no more than 10 files total.");
+            allSelectedFiles = allSelectedFiles.slice(0, 10);
+          }
+
+          // Update file input
+          const dt = new DataTransfer();
+          allSelectedFiles.forEach(file => dt.items.add(file));
+          fileInput.files = dt.files;
+
+          // Show file list
+          displayFileList();
+        }
+
+        // ✅ FIXED: Display file list with preserved quantities
+        function displayFileList() {
+          if (allSelectedFiles.length === 0) {
+            fileList.classList.add("hidden");
+            dropZoneText.innerHTML = `
+              <strong>Drag & drop your files here</strong><br>
+              <span class="text-sm">Supports PDF and PNG files (max 10 files)</span>
+            `;
+            return;
+          }
+
+          fileList.classList.remove("hidden");
+          fileItems.innerHTML = "";
+
+          // Create file items
+          allSelectedFiles.forEach((file, index) => {
+            const fileItem = document.createElement("div");
+            fileItem.className = "flex items-center justify-between bg-gray-50 border rounded-md p-3";
+            
+            // Get preserved quantity or default to empty
+            const preservedQuantity = fileQuantities[file.name] || "";
+            
+            fileItem.innerHTML = `
+              <div class="flex items-center space-x-4">
+                <!-- PDF Thumbnail -->
+                <div class="flex-shrink-0">
+                  <canvas id="preview-${index}" class="w-16 h-16 border border-gray-300 rounded bg-gray-50" 
+                    data-file-index="${index}"></canvas>
+                </div>
+                
+                <!-- File Info -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center space-x-3">
+                    <span class="text-blue-600">📄</span>
+                    <span class="font-medium truncate">${file.name}</span>
+                    <span class="text-gray-500 text-sm">(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Controls -->
+              <div class="flex items-center space-x-2">
+                <input type="number" min="1" placeholder="Qty" value="${preservedQuantity}"
+                  class="border border-gray-300 rounded px-2 py-1 w-20 text-center" 
+                  name="quantity_${index}"
+                  data-file-name="${file.name}" onchange="updateQuantity('${file.name}', this.value)" required />
+                
+                <button type="button" class="text-red-600 hover:text-red-800 px-2 py-1" 
+                  onclick="removeFile(${index})">❌</button>
+              </div>
+            `;
+            
+            // Generate thumbnail for this file
+            generateThumbnail(file, index);
+            fileItems.appendChild(fileItem);
+          });
+
+          // Update drop zone text
+          dropZoneText.innerHTML = `
+            <strong>${allSelectedFiles.length} file(s) selected</strong><br>
+            <span class="text-sm">Drag & drop to add more files (max 10)</span>
+          `;
+        }
+
+        // ✅ NEW: Update quantity for a specific file
+        function updateQuantity(fileName, quantity) {
+          fileQuantities[fileName] = quantity;
+        }
+
+
+
+        // ✅ FIXED: Remove file function
+        function removeFile(index) {
+          const removedFile = allSelectedFiles[index];
+          
+          // Remove the file from arrays
+          allSelectedFiles.splice(index, 1);
+          delete fileQuantities[removedFile.name];
+          
+          // Update file input
+          const dt = new DataTransfer();
+          allSelectedFiles.forEach(file => dt.items.add(file));
+          fileInput.files = dt.files;
+          
+          displayFileList();
+        }
+
+        // ✅ Generate thumbnail for a PDF file
+        async function generateThumbnail(file, index) {
+          try {
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+              const typedarray = new Uint8Array(e.target.result);
+              const canvas = document.getElementById(`preview-${index}`);
+              
+              if (!canvas) return; // Canvas might not exist if file was removed
+              
+              const context = canvas.getContext("2d");
+              
+              try {
+                const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                const page = await pdf.getPage(1);
+                
+                // Calculate scale to fit in 64x64 thumbnail while maintaining aspect ratio
+                const viewport = page.getViewport({ scale: 1 });
+                const scale = Math.min(64 / viewport.width, 64 / viewport.height);
+                const scaledViewport = page.getViewport({ scale: scale });
+                
+                canvas.width = 64;
+                canvas.height = 64;
+                
+                // Clear canvas with light background
+                context.fillStyle = '#f9fafb';
+                context.fillRect(0, 0, 64, 64);
+                
+                // Center the PDF content
+                const offsetX = (64 - scaledViewport.width) / 2;
+                const offsetY = (64 - scaledViewport.height) / 2;
+                
+                const renderContext = {
+                  canvasContext: context,
+                  viewport: scaledViewport,
+                  transform: [1, 0, 0, 1, offsetX, offsetY]
+                };
+                
+                await page.render(renderContext).promise;
+              } catch (error) {
+                // If PDF rendering fails, show a placeholder
+                context.fillStyle = '#e5e7eb';
+                context.fillRect(0, 0, 64, 64);
+                context.fillStyle = '#6b7280';
+                context.font = '12px Arial';
+                context.textAlign = 'center';
+                context.fillText('PDF', 32, 32);
+              }
+            };
+            reader.readAsArrayBuffer(file);
+          } catch (error) {
+            console.error('Error generating thumbnail:', error);
+          }
+        }
+
+        // ✅ Keep original single file handling for now
+        function handleFile(files) {
+          if (!files || files.length === 0) return;
+
+          const file = files[0];
+          const fileExtension = file.name.toLowerCase().split('.').pop();
+          
+          if (fileExtension !== 'pdf' && fileExtension !== 'png') {
+            alert("Please select a PDF or PNG file.");
+            return;
+          }
+
+          fileNameDisplay.textContent = `✅ Selected: ${file.name}`;
+          filePreview.classList.remove("hidden");
+
+          // ✅ Show thumbnail (PDF.js for PDFs, canvas for PNGs)
+          const reader = new FileReader();
+          reader.onload = async function(e) {
+            if (fileExtension === 'pdf') {
+              // Show PDF thumbnail using PDF.js
+              const typedarray = new Uint8Array(e.target.result);
+              const pdf = await pdfjsLib.getDocument(typedarray).promise;
+              const page = await pdf.getPage(1);
+
+              const viewport = page.getViewport({ scale: 0.3 }); // Small preview
+              const context = pdfThumbnailCanvas.getContext("2d");
+
+              pdfThumbnailCanvas.width = viewport.width;
+              pdfThumbnailCanvas.height = viewport.height;
+
+              const renderContext = {
+                canvasContext: context,
+                viewport: viewport,
+              };
+              await page.render(renderContext).promise;
+            } else {
+              // Show PNG thumbnail using canvas
+              const img = new Image();
+              img.onload = function() {
+                const context = pdfThumbnailCanvas.getContext("2d");
+                const scale = 0.3; // Small preview
+                pdfThumbnailCanvas.width = img.width * scale;
+                pdfThumbnailCanvas.height = img.height * scale;
+                context.drawImage(img, 0, 0, pdfThumbnailCanvas.width, pdfThumbnailCanvas.height);
+              };
+              img.src = e.target.result;
+            }
+          };
+          reader.readAsArrayBuffer(file);
+        }
+
+        // ✅ ENHANCED: Process all files
+        const form = document.getElementById("uploadForm");
+        const logDiv = document.getElementById("log");
+        const generateBtn = document.getElementById("generateBtn");
+
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          console.log("Form submitted!"); // Debug log
+
+          if (allSelectedFiles.length === 0) {
+            alert("Please select at least one file.");
+            return;
+          }
+
+          console.log("Files selected:", allSelectedFiles.length); // Debug log
+
+          // Check if all files have quantities
+          const missingQuantities = allSelectedFiles.filter(file => !fileQuantities[file.name] || fileQuantities[file.name] === "");
+          if (missingQuantities.length > 0) {
+            alert("Please enter quantities for all files.");
+            return;
+          }
+
+          console.log("All quantities entered"); // Debug log
+
+          // Show progress indicator and hide generate button
+          const progressIndicator = document.getElementById("progressIndicator");
+          const generateBtn = document.getElementById("generateBtn");
+          
+          generateBtn.classList.add("hidden");
+          progressIndicator.classList.remove("hidden");
+          
+          // Initialize progress
+          updateProgress("Preparing files...", 10, "Loading file data and calculating quantities");
+
+          logDiv.innerHTML = `
+            <div class="flex flex-col items-center justify-center text-gray-700">
+              <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-3"></div>
+              <p class="font-semibold text-sm text-gray-600">Processing ${allSelectedFiles.length} files...</p>
+            </div>
+          `;
+
+            const gangWidth = document.getElementById("gangWidth").value;
+            const maxLength = document.getElementById("maxLength").value;
+
+          let allResults = [];
+          let totalCost = 0;
+
+          try {
+            // ✅ NEW: Process all files together with consolidation
+            console.log(`Processing ${allSelectedFiles.length} files with consolidation`); // Debug log
+
+            updateProgress("Creating form data...", 20, "Preparing files for upload");
+
+            const formData = new FormData();
+            
+            // Add all files
+            allSelectedFiles.forEach(file => {
+              formData.append("files", file);
+            });
+            
+            // Add quantities as JSON array
+            const quantities = allSelectedFiles.map(file => fileQuantities[file.name]);
+            formData.append("quantities", JSON.stringify(quantities));
+            
+            // Add other parameters
+            formData.append("gangWidth", gangWidth);
+            formData.append("maxLength", maxLength);
+            
+            // Add user's custom cost tables
+            const settings = loadSettings();
+            formData.append("costTables", JSON.stringify(settings.costTables));
+
+            updateProgress("Uploading files...", 30, "Sending files to server for processing");
+
+            const response = await fetch("/merge-consolidated", {
+              method: "POST",
+              body: formData
+            });
+
+            if (!response.ok) {
+              throw new Error(`Server error: ${response.status}`);
+            }
+
+            updateProgress("Processing gang sheets...", 60, "Optimizing layout and generating PDFs");
+
+            const data = await response.json();
+            
+            allResults = data.sheets;
+            totalCost = data.totalCost;
+
+            console.log("All files processed successfully"); // Debug log
+
+            updateProgress("Finalizing...", 90, "Preparing download links");
+
+            // Display results
+            let html = `
+              <div class="flex items-center justify-center gap-2 mb-4 animate-fadeIn">
+                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <p class="text-green-700 font-semibold">All sheets ready!</p>
+              </div>
+
+              <div class="bg-white shadow-md rounded-lg p-4 animate-fadeIn">
+                <h3 class="text-lg font-bold mb-3">
+                  ✅ ${allResults.length} total sheet(s) generated for ${allSelectedFiles.length} files
+                </h3>
+                <ul class="space-y-2">
+            `;
+
+            allResults.forEach((s, index) => {
+              html += `
+                <li class="flex flex-col bg-gray-50 border rounded-md p-3">
+                  <div class="flex justify-between items-center mb-2">
+                    <div>
+                      📄 <span class="font-medium">${s.filename}</span>
+                      <span class="text-green-600 font-semibold ml-2"> $${(s.cost || 0).toFixed(2)}</span>
+                    </div>
+                    <button onclick="editFilename(${index})" class="text-gray-500 hover:text-blue-600 text-sm">
+                      ✏️ Edit Name
+                    </button>
+                  </div>
+                  <div id="filename-edit-${index}" class="hidden mb-2">
+                    <div class="flex items-center gap-2">
+                      <input type="text" id="custom-filename-${index}" value="${s.filename.replace('.pdf', '')}" 
+                             class="flex-1 border border-gray-300 rounded px-2 py-1 text-sm">
+                      <button onclick="saveFilename(${index})" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700">
+                        Save
+                      </button>
+                      <button onclick="cancelEdit(${index})" class="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                  <div class="flex justify-end">
+                    <a href="data:application/pdf;base64,${s.pdfBase64}" download="${s.filename}" class="text-blue-600 hover:underline">
+                       ⬇️ Download
+                    </a>
+                  </div>
+                </li>
+              `;
+            });
+
+                          html += `</ul>
+              <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-center">
+                <span class="block text-sm text-gray-600">Total Summary</span>
+                <span class="text-xl font-bold text-green-700">
+                  Total Cost: $${(totalCost || 0).toFixed(2)}
+                </span>
+                <p class="text-xs italic text-gray-500 mt-2">Customize your cost tables by clicking the settings icon at the top right of this tool</p>
+              </div>
+              <button id="downloadAll" 
+                class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                ⬇️ Download All Sheets
+              </button>
+              </div>
+            `;
+
+            logDiv.innerHTML = html;
+
+            generateBtn.classList.remove("hidden");
+            progressIndicator.classList.add("hidden");
+
+            document.getElementById("downloadAll").addEventListener("click", () => {
+              allResults.forEach((s) => {
+                const a = document.createElement("a");
+                a.href = `data:application/pdf;base64,${s.pdfBase64}`;
+                a.download = s.filename;
+                a.click();
+              });
+            });
+
+            // Store the results globally for filename editing
+            window.allResults = allResults;
+
+          } catch (error) {
+            console.error("Error:", error); // Debug log
+            logDiv.innerHTML = `
+              <div class="text-center text-red-600 font-semibold p-4 bg-red-50 border border-red-200 rounded-lg">
+                ❌ Error: ${error.message}
+              </div>
+            `;
+            generateBtn.classList.remove("hidden");
+            progressIndicator.classList.add("hidden");
+          }
+        });
+
+        // Filename editing functions
+        function editFilename(index) {
+          document.getElementById(`filename-edit-${index}`).classList.remove('hidden');
+        }
+
+        function saveFilename(index) {
+          const customName = document.getElementById(`custom-filename-${index}`).value;
+          const newFilename = customName.endsWith('.pdf') ? customName : customName + '.pdf';
+          
+          // Update the stored filename
+          window.allResults[index].filename = newFilename;
+          
+          // Update the display
+          const filenameSpan = document.querySelector(`#filename-edit-${index}`).parentElement.querySelector('.font-medium');
+          filenameSpan.textContent = newFilename;
+          
+          // Update the download link
+          const downloadLink = document.querySelector(`#filename-edit-${index}`).parentElement.parentElement.querySelector('a');
+          downloadLink.download = newFilename;
+          
+          // Hide the edit form
+          document.getElementById(`filename-edit-${index}`).classList.add('hidden');
+        }
+
+        function cancelEdit(index) {
+          // Reset the input to original filename
+          const originalFilename = window.allResults[index].filename;
+          document.getElementById(`custom-filename-${index}`).value = originalFilename.replace('.pdf', '');
+          
+          // Hide the edit form
+          document.getElementById(`filename-edit-${index}`).classList.add('hidden');
+        }
+
+        // Progress tracking function
+        function updateProgress(status, percent, details) {
+          const progressStatus = document.getElementById("progressStatus");
+          const progressPercent = document.getElementById("progressPercent");
+          const progressBar = document.getElementById("progressBar");
+          const progressDetails = document.getElementById("progressDetails");
+          
+          progressStatus.textContent = status;
+          progressPercent.textContent = `${percent}%`;
+          progressBar.style.width = `${percent}%`;
+          progressDetails.textContent = details;
+        }
+      </script>
+
+      <!-- Settings Modal -->
+      <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div class="p-6">
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="text-xl font-bold text-gray-900">Settings</h2>
+              <button id="closeSettingsBtn" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Appearance Settings -->
+            <div class="mb-6">
+              <h3 class="text-lg font-semibold mb-4">Appearance</h3>
+              <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <label class="text-sm font-medium text-gray-700">Dark Mode</label>
+                  <p class="text-xs text-gray-500">Switch between light and dark themes</p>
+                </div>
+                <button id="darkModeToggle" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors">
+                  <span class="sr-only">Toggle dark mode</span>
+                  <span id="darkModeSlider" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Width Selection -->
+            <div class="mb-6">
+              <h3 class="text-lg font-semibold mb-4">DTF Transfer Costs</h3>
+              <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select Gang Sheet Width</label>
+                <select id="settingsWidthSelect" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+                  <option value="22">22 inches</option>
+                  <option value="30">30 inches</option>
+                </select>
+              </div>
+              <p class="text-sm text-gray-600 mb-4">
+                Configure costs for <span id="selectedWidthText">22"</span> width sheets. Add or remove height tiers to match your supplier's pricing structure.
+              </p>
+              
+              <!-- Height Tier Management -->
+              <div class="mb-4">
+                <div class="flex items-center justify-between mb-3">
+                  <h4 class="text-md font-medium text-gray-700">Height Tiers</h4>
+                  <button id="addHeightBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">
+                    + Add Height
+                  </button>
+                </div>
+                <div id="heightTiersContainer" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <!-- Height tiers will be populated here -->
+                </div>
+              </div>
+            </div>
+
+
+
+            <!-- Success Message -->
+            <div id="settingsSuccess" class="hidden mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm">
+              Settings saved successfully!
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-3">
+              <button id="saveSettingsBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                Save Settings
+              </button>
+              <button id="exportSettingsBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                Export Settings
+              </button>
+              <button id="importSettingsBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                Import Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        .animate-fadeIn {
+          animation: fadeIn 0.4s ease-in-out;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      </style>
+
+      <script>
+        // Settings Modal Functionality
+        const settingsBtn = document.getElementById("settingsBtn");
+        const settingsModal = document.getElementById("settingsModal");
+        const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+        const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+        const exportSettingsBtn = document.getElementById("exportSettingsBtn");
+        const importSettingsBtn = document.getElementById("importSettingsBtn");
+
+        // Default cost tables for each width (empty by default)
+        const defaultCostTables = {
+          22: {},
+          30: {}
+        };
+
+        // Dark mode functionality
+        function loadDarkMode() {
+          const isDark = localStorage.getItem('ezgangsheets_darkMode') === 'true';
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            updateDarkModeToggle(true);
+          } else {
+            document.documentElement.classList.remove('dark');
+            updateDarkModeToggle(false);
+          }
+        }
+
+        function updateDarkModeToggle(isDark) {
+          const toggle = document.getElementById('darkModeToggle');
+          const slider = document.getElementById('darkModeSlider');
+          
+          if (isDark) {
+            toggle.classList.remove('dark-mode-off');
+            toggle.classList.add('dark-mode-on');
+            slider.style.transform = 'translateX(20px)';
+          } else {
+            toggle.classList.remove('dark-mode-on');
+            toggle.classList.add('dark-mode-off');
+            slider.style.transform = 'translateX(0)';
+          }
+        }
+
+        function toggleDarkMode() {
+          const isDark = document.documentElement.classList.contains('dark');
+          const newMode = !isDark;
+          
+          if (newMode) {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('ezgangsheets_darkMode', 'true');
+          } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('ezgangsheets_darkMode', 'false');
+          }
+          
+          updateDarkModeToggle(newMode);
+        }
+
+        // Load saved settings or use defaults
+        function loadSettings() {
+          const saved = localStorage.getItem('ezgangsheets_settings');
+          if (saved) {
+            const settings = JSON.parse(saved);
+            // Ensure backward compatibility
+            if (!settings.costTables) {
+              // Convert old format to new format
+              if (settings.costTable) {
+                settings.costTables = {
+                  22: settings.costTable,
+                  30: defaultCostTables[30]
+                };
+              } else {
+                settings.costTables = defaultCostTables;
+              }
+            }
+            return settings;
+          }
+          return { 
+            costTables: defaultCostTables
+          };
+        }
+
+        // Save settings to localStorage
+        function saveSettings(settings) {
+          localStorage.setItem('ezgangsheets_settings', JSON.stringify(settings));
+        }
+
+        // Populate settings in modal
+        function populateSettings() {
+          const settings = loadSettings();
+          const costTables = settings.costTables;
+          const widthSelect = document.getElementById("settingsWidthSelect");
+          const selectedWidth = widthSelect.value;
+          const costTable = costTables[selectedWidth];
+          
+          // Update the description text
+          document.getElementById("selectedWidthText").textContent = `${selectedWidth}"`;
+          
+          // Populate height tiers dynamically
+          populateHeightTiers(costTable);
+        }
+
+        // Populate height tiers in the container
+        function populateHeightTiers(costTable) {
+          const container = document.getElementById("heightTiersContainer");
+          container.innerHTML = '';
+          
+          // Sort heights numerically
+          const heights = Object.keys(costTable).map(Number).sort((a, b) => a - b);
+          
+          heights.forEach(height => {
+            const tierDiv = document.createElement('div');
+            tierDiv.className = 'relative';
+            tierDiv.innerHTML = `
+              <label class="block text-sm font-medium text-gray-700 mb-1">${height}" height</label>
+              <div class="flex">
+                <input type="number" id="cost-${height}" step="0.01" min="0" value="${costTable[height]}" 
+                       class="w-full border border-gray-300 rounded-l-md px-3 py-2 text-sm">
+                <button type="button" onclick="removeHeightTier(${height})" 
+                        class="bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 border border-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-300 dark:hover:text-white dark:border-gray-300 px-2 py-2 rounded-r-md text-sm transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+            `;
+            container.appendChild(tierDiv);
+          });
+        }
+
+        // Add new height tier
+        function addHeightTier() {
+          const height = prompt("Enter height in inches (e.g., 12, 24, 36):");
+          if (height && !isNaN(height) && height > 0) {
+            const settings = loadSettings();
+            const widthSelect = document.getElementById("settingsWidthSelect");
+            const selectedWidth = widthSelect.value;
+            
+            // Add the new height tier with a default cost
+            settings.costTables[selectedWidth][height] = 0;
+            
+            // Re-populate the display
+            populateHeightTiers(settings.costTables[selectedWidth]);
+          }
+        }
+
+        // Remove height tier
+        function removeHeightTier(height) {
+          if (confirm(`Remove ${height}" height tier?`)) {
+            const settings = loadSettings();
+            const widthSelect = document.getElementById("settingsWidthSelect");
+            const selectedWidth = widthSelect.value;
+            
+            delete settings.costTables[selectedWidth][height];
+            
+            // Re-populate the display
+            populateHeightTiers(settings.costTables[selectedWidth]);
+          }
+        }
+
+        // Update settings from modal inputs
+        function updateSettings() {
+          const settings = loadSettings();
+          const costTables = settings.costTables;
+          const widthSelect = document.getElementById("settingsWidthSelect");
+          const selectedWidth = widthSelect.value;
+          
+          // Update cost table for selected width from all visible inputs
+          const costInputs = document.querySelectorAll('#heightTiersContainer [id^="cost-"]');
+          costInputs.forEach(input => {
+            const height = input.id.replace('cost-', '');
+            const value = parseFloat(input.value) || 0;
+            if (value > 0) { // Only save non-zero values
+              costTables[selectedWidth][height] = value;
+            } else {
+              delete costTables[selectedWidth][height]; // Remove zero values
+            }
+          });
+          
+          return { costTables };
+        }
+
+        // Open settings modal
+        settingsBtn.addEventListener("click", () => {
+          populateSettings();
+          settingsModal.classList.remove("hidden");
+        });
+
+        // Handle width selector change
+        document.getElementById("settingsWidthSelect").addEventListener("change", () => {
+          populateSettings();
+        });
+
+        // Handle add height button
+        document.getElementById("addHeightBtn").addEventListener("click", addHeightTier);
+
+        // Handle dark mode toggle
+        document.getElementById("darkModeToggle").addEventListener("click", toggleDarkMode);
+
+        // Close settings modal
+        closeSettingsBtn.addEventListener("click", () => {
+          settingsModal.classList.add("hidden");
+        });
+
+        // Close modal when clicking outside
+        settingsModal.addEventListener("click", (e) => {
+          if (e.target === settingsModal) {
+            settingsModal.classList.add("hidden");
+          }
+        });
+
+        // Save settings
+        saveSettingsBtn.addEventListener("click", () => {
+          const settings = updateSettings();
+          saveSettings(settings);
+          
+          // Show success message
+          const successMsg = document.getElementById("settingsSuccess");
+          successMsg.classList.remove("hidden");
+          setTimeout(() => {
+            successMsg.classList.add("hidden");
+          }, 2000);
+        });
+
+        // Export settings
+        exportSettingsBtn.addEventListener("click", () => {
+          const settings = loadSettings();
+          const dataStr = JSON.stringify(settings, null, 2);
+          const dataBlob = new Blob([dataStr], { type: 'application/json' });
+          
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(dataBlob);
+          link.download = 'ezgangsheets-settings.json';
+          link.click();
+        });
+
+        // Import settings
+        importSettingsBtn.addEventListener("click", () => {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = '.json';
+          
+          input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                try {
+                  const settings = JSON.parse(e.target.result);
+                  if (settings.costTable || settings.costTables) {
+                    // Ensure costTables exist for backward compatibility
+                    if (!settings.costTables) {
+                      settings.costTables = {
+                        22: settings.costTable,
+                        30: defaultCostTables[30]
+                      };
+                    }
+                    saveSettings(settings);
+                    populateSettings();
+                    
+                    const successMsg = document.getElementById("settingsSuccess");
+                    successMsg.textContent = "Settings imported successfully!";
+                    successMsg.classList.remove("hidden");
+                    setTimeout(() => {
+                      successMsg.classList.add("hidden");
+                    }, 2000);
+                  }
+                } catch (error) {
+                  alert("Invalid settings file. Please try again.");
+                }
+              };
+              reader.readAsText(file);
+            }
+          };
+          
+          input.click();
+        });
+
+        // Initialize settings on page load
+        populateSettings();
+
+        // File Requirements Toggle
+        document.getElementById("fileRequirementsBtn").addEventListener("click", () => {
+          const content = document.getElementById("fileRequirementsContent");
+          content.classList.toggle("hidden");
+        });
+        
+        // Initialize dark mode
+        loadDarkMode();
+      </script>
+
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="py-16 bg-white">
+        <div class="container mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center text-gray-900 mb-12">Why Choose EZGangSheets?</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+                <div class="text-center">
+                    <div class="flex justify-center mb-4">
+                        <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Smart Layout Optimization</h3>
+                    <p class="text-gray-600">Our advanced algorithms ensure optimal logo placement, minimizing waste and maximizing efficiency.</p>
+                </div>
+                <div class="text-center">
+                    <div class="flex justify-center mb-4">
+                        <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Easy to Use</h3>
+                    <p class="text-gray-600">Intuitive interface and simple drag-and-drop functionality for quick file uploads and generation.</p>
+                </div>
+                <div class="text-center">
+                    <div class="flex justify-center mb-4">
+                        <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6-4l2 2 4-4"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Accurate Cost Calculations</h3>
+                    <p class="text-gray-600">Real-time cost calculations based on your selected gang sheet width and height tiers.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-16 bg-gray-50">
+        <div class="container mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center text-gray-900 mb-12">Pricing</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+                <div class="bg-white rounded-lg shadow-md p-8 text-center">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Free Tier</h3>
+                    <p class="text-gray-600 mb-6">Perfect for small projects and beginners.</p>
+                    <ul class="space-y-4 mb-6">
+                        <li class="flex items-center text-gray-700">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            Unlimited file uploads
+                        </li>
+                        <li class="flex items-center text-gray-700">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"/>
+                            </svg>
+                            Basic cost calculations
+                        </li>
+                        <li class="flex items-center text-gray-700">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                            </svg>
+                            Limited customization
+                        </li>
+                    </ul>
+                    <button class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+                        Get Started for Free
+                    </button>
+                </div>
+                <div class="bg-white rounded-lg shadow-md p-8 text-center">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Pro Plan</h3>
+                    <p class="text-gray-600 mb-6">For professional users and large-scale projects.</p>
+                    <ul class="space-y-4 mb-6">
+                        <li class="flex items-center text-gray-700">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            Unlimited file uploads
+                        </li>
+                        <li class="flex items-center text-gray-700">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"/>
+                            </svg>
+                            Advanced cost calculations
+                        </li>
+                        <li class="flex items-center text-gray-700">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                            </svg>
+                            Custom cost tables
+                        </li>
+                    </ul>
+                    <button class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+                        Upgrade to Pro
+                    </button>
+                </div>
+                <div class="bg-white rounded-lg shadow-md p-8 text-center">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Enterprise</h3>
+                    <p class="text-gray-600 mb-6">For large organizations and complex DTF operations.</p>
+                    <ul class="space-y-4 mb-6">
+                        <li class="flex items-center text-gray-700">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            Unlimited file uploads
+                        </li>
+                        <li class="flex items-center text-gray-700">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"/>
+                            </svg>
+                            Advanced cost calculations
+                        </li>
+                        <li class="flex items-center text-gray-700">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                            </svg>
+                            Custom cost tables
+                        </li>
+                        <li class="flex items-center text-gray-700">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6-4l2 2 4-4"/>
+                            </svg>
+                            Dedicated support
+                        </li>
+                    </ul>
+                    <button class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+                        Contact Sales
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-gray-300 py-16">
+        <div class="container mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-12">
+            <div>
+                <h3 class="text-xl font-bold text-white mb-4">EZGangSheets</h3>
+                <p class="text-gray-400">Your one-stop solution for optimized DTF gang sheet generation.</p>
+            </div>
+            <div>
+                <h3 class="text-xl font-bold text-white mb-4">Quick Links</h3>
+                <ul class="space-y-3">
+                    <li><a href="#features" class="text-gray-400 hover:text-white transition">Features</a></li>
+                    <li><a href="#pricing" class="text-gray-400 hover:text-white transition">Pricing</a></li>
+                    <li><a href="#" class="text-gray-400 hover:text-white transition">About Us</a></li>
+                    <li><a href="#" class="text-gray-400 hover:text-white transition">Contact</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="text-xl font-bold text-white mb-4">Legal</h3>
+                <ul class="space-y-3">
+                    <li><a href="#" class="text-gray-400 hover:text-white transition">Privacy Policy</a></li>
+                    <li><a href="#" class="text-gray-400 hover:text-white transition">Terms of Service</a></li>
+                    <li><a href="#" class="text-gray-400 hover:text-white transition">Cookie Policy</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="text-xl font-bold text-white mb-4">Follow Us</h3>
+                <div class="flex space-x-4">
+                    <a href="#" class="text-gray-400 hover:text-white transition"><i class="fab fa-twitter"></i></a>
+                    <a href="#" class="text-gray-400 hover:text-white transition"><i class="fab fa-facebook"></i></a>
+                    <a href="#" class="text-gray-400 hover:text-white transition"><i class="fab fa-linkedin"></i></a>
+                    <a href="#" class="text-gray-400 hover:text-white transition"><i class="fab fa-instagram"></i></a>
+                </div>
+            </div>
+        </div>
+        <div class="mt-16 text-center text-gray-500 text-sm">
+            &copy; 2023 EZGangSheets. All rights reserved.
+        </div>
+    </footer>
+
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</body>
+</html> 
